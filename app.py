@@ -171,6 +171,75 @@ def get_cloudinary_download_url(cloudinary_url, original_filename):
     return download_url
 
 
+# ============== Cloudinary 签名直传 API ==============
+
+@app.route('/api/upload-signature')
+@login_required(role='uploader')
+def api_upload_signature():
+    """
+    API: 获取 Cloudinary 上传签名
+    前端直传到 Cloudinary 时需要此签名进行身份验证
+    """
+    if not USE_CLOUDINARY:
+        return jsonify({'success': False, 'message': 'Cloudinary 未配置'}), 400
+    
+    import hashlib
+    import time
+    
+    timestamp = str(int(time.time()))
+    signature_string = timestamp + cloudinary_config['api_secret']
+    signature = hashlib.sha1(signature_string.encode()).hexdigest()
+    
+    return jsonify({
+        'success': True,
+        'cloud_name': cloudinary_config['cloud_name'],
+        'api_key': cloudinary_config['api_key'],
+        'timestamp': timestamp,
+        'signature': signature
+    })
+
+
+@app.route('/api/save-upload', methods=['POST'])
+@login_required(role='uploader')
+def api_save_upload():
+    """
+    API: 保存前端直传成功后的视频记录
+    前端直传到 Cloudinary 成功后调用此接口，将视频信息存入数据库
+    """
+    data = request.get_json()
+    
+    if not data:
+        return jsonify({'success': False, 'message': '缺少参数'}), 400
+    
+    cloudinary_url = data.get('cloudinary_url')
+    cloudinary_public_id = data.get('cloudinary_public_id')
+    original_filename = data.get('original_filename')
+    file_size = data.get('file_size', 0)
+    
+    if not cloudinary_url or not original_filename:
+        return jsonify({'success': False, 'message': '缺少必要参数'}), 400
+    
+    # 生成存储文件名
+    import uuid as uuid_module
+    ext = original_filename.rsplit('.', 1)[1].lower() if '.' in original_filename else 'mp4'
+    stored_filename = f"{uuid_module.uuid4().hex}.{ext}"
+    
+    # 保存到数据库
+    user = get_current_user()
+    add_video(
+        original_filename, stored_filename, file_size, user['id'],
+        cloudinary_public_id=cloudinary_public_id,
+        cloudinary_url=cloudinary_url
+    )
+    
+    print(f"✓ 视频记录已保存: {original_filename}")
+    
+    return jsonify({
+        'success': True,
+        'message': '视频记录已保存'
+    })
+
+
 # ============== 启动时初始化 ==============
 with app.app_context():
     init_db()

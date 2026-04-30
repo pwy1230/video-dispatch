@@ -151,11 +151,10 @@
             <div class="card mt-3">
                 <div class="card-header">
                     <h2 class="card-title">📤 上传视频到视频池</h2>
-                    <span class="text-muted">支持 MP4、AVI、MOV、MKV 格式，单个最大 500MB</span>
+                    <span class="text-muted">支持 MP4、AVI、MOV、MKV 格式，单个最大 500MB（直传 Cloudinary，速度更快）</span>
                 </div>
                 
-                <form id="upload-form" action="{{ url_for('upload_video') }}" method="POST" 
-                      enctype="multipart/form-data">
+                <form id="upload-form">
                     <div class="upload-zone" id="upload-zone">
                         <div class="upload-zone-icon">📁</div>
                         <div class="upload-zone-text">点击或拖拽视频文件到此处上传</div>
@@ -258,6 +257,7 @@
 
         let selectedFiles = [];
         let isUploading = false;
+        let cloudinaryConfig = null;
 
         // 格式化文件大小
         function formatSize(bytes) {
@@ -318,7 +318,115 @@
             videoInput.dispatchEvent(new Event('change'));
         });
 
-        // 开始上传 - 使用批量上传接口
+        // 获取 Cloudinary 签名
+        async function getCloudinarySignature() {
+            try {
+                const response = await fetch('{{ url_for("api_upload_signature") }}');
+                const result = await response.json();
+                if (result.success) {
+                    cloudinaryConfig = result;
+                    return true;
+                } else {
+                    alert('获取上传配置失败: ' + result.message);
+                    return false;
+                }
+            } catch (error) {
+                alert('获取上传配置失败: ' + error.message);
+                return false;
+            }
+        }
+
+        // 直传视频到 Cloudinary
+        async function uploadToCloudinary(file, index) {
+            const timestamp = cloudinaryConfig.timestamp;
+            const signature = cloudinaryConfig.signature;
+            const cloudName = cloudinaryConfig.cloud_name;
+            const apiKey = cloudinaryConfig.api_key;
+
+            return new Promise((resolve, reject) => {
+                const xhr = new XMLHttpRequest();
+                const formData = new FormData();
+                
+                formData.append('file', file);
+                formData.append('api_key', apiKey);
+                formData.append('timestamp', timestamp);
+                formData.append('signature', signature);
+                formData.append('folder', 'video_dispatch');
+                formData.append('resource_type', 'video');
+
+                xhr.open('POST', `https://api.cloudinary.com/v1_1/${cloudName}/video/upload`, true);
+
+                xhr.upload.onprogress = function(e) {
+                    if (e.lengthComputable) {
+                        const percent = Math.round((e.loaded / e.total) * 100);
+                        const item = document.getElementById(`upload-item-${index}`);
+                        if (item) {
+                            item.innerHTML = `<span>⏳</span> ${file.name} - 上传中 ${percent}%`;
+                        }
+                    }
+                };
+
+                xhr.onload = function() {
+                    if (xhr.status === 200) {
+                        try {
+                            const result = JSON.parse(xhr.responseText);
+                            resolve({
+                                success: true,
+                                cloudinary_url: result.secure_url,
+                                cloudinary_public_id: result.public_id,
+                                original_filename: file.name,
+                                file_size: file.size
+                            });
+                        } catch (e) {
+                            resolve({
+                                success: false,
+                                message: '解析响应失败'
+                            });
+                        }
+                    } else {
+                        try {
+                            const error = JSON.parse(xhr.responseText);
+                            resolve({
+                                success: false,
+                                message: error.error?.message || '上传失败'
+                            });
+                        } catch (e) {
+                            resolve({
+                                success: false,
+                                message: '上传失败 (HTTP ' + xhr.status + ')'
+                            });
+                        }
+                    }
+                };
+
+                xhr.onerror = function() {
+                    resolve({
+                        success: false,
+                        message: '网络错误'
+                    });
+                };
+
+                xhr.send(formData);
+            });
+        }
+
+        // 保存上传记录到服务器
+        async function saveUploadRecord(uploadResult) {
+            try {
+                const response = await fetch('{{ url_for("api_save_upload") }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(uploadResult)
+                });
+                return await response.json();
+            } catch (error) {
+                return { success: false, message: error.message };
+            }
+        }
+
+        // 开始上传 - 使用前端直传 Cloudinary
         startUploadBtn.addEventListener('click', async function() {
             if (selectedFiles.length === 0 || isUploading) return;
             
@@ -335,84 +443,91 @@
                 const item = document.createElement('div');
                 item.className = 'upload-item uploading';
                 item.id = `upload-item-${index}`;
-                item.innerHTML = `<span>⏳</span> ${file.name} - 等待上传...`;
+                item.innerHTML = `<span>⏳</span> ${file.name} - 准备上传...`;
                 uploadResult.appendChild(item);
             });
             
-            // 使用批量上传接口，一次提交所有文件
             const total = selectedFiles.length;
-            progressText.textContent = `正在上传 0/${total}`;
-            progressPercent.textContent = '0%';
-            progressBar.style.width = '0%';
+            let completed = 0;
+            let successCount = 0;
+            let errorCount = 0;
             
-            try {
-                const formData = new FormData();
-                selectedFiles.forEach(file => {
-                    formData.append('video', file);
-                });
-                
-                // 显示正在上传状态
-                for (let i = 0; i < selectedFiles.length; i++) {
-                    const item = document.getElementById(`upload-item-${i}`);
-                    if (item) {
-                        item.className = 'upload-item uploading';
-                        item.innerHTML = `<span>⏳</span> ${selectedFiles[i].name} - 上传中...`;
-                    }
-                }
-                
-                const response = await fetch('{{ url_for("upload_video_batch") }}', {
-                    method: 'POST',
-                    body: formData
-                });
-                
-                const result = await response.json();
-                
-                // 更新进度显示
-                progressText.textContent = `正在上传 ${result.total}/${result.total}`;
-                progressPercent.textContent = '100%';
-                progressBar.style.width = '100%';
-                
-                // 更新每个文件的状态
-                if (result.results) {
-                    result.results.forEach((r, index) => {
-                        const item = document.getElementById(`upload-item-${index}`);
-                        if (item) {
-                            if (r.success) {
-                                item.className = 'upload-item success';
-                                item.innerHTML = `<span>✅</span> ${r.filename || selectedFiles[index].name} - 上传成功`;
-                            } else {
-                                item.className = 'upload-item error';
-                                item.innerHTML = `<span>❌</span> ${r.filename || selectedFiles[index].name} - ${r.message}`;
-                            }
-                        }
-                    });
-                }
-                
-                // 显示统计结果
-                const summary = document.createElement('div');
-                summary.style.marginTop = '15px';
-                summary.style.padding = '10px';
-                
-                if (result.success) {
-                    summary.style.background = '#e8f5e9';
-                    summary.style.color = '#2e7d32';
-                    summary.innerHTML = `🎉 上传完成！成功 ${result.success_count} 个`;
-                } else {
-                    summary.style.background = result.error_count > 0 ? '#fff3e0' : '#e8f5e9';
-                    summary.style.color = result.error_count > 0 ? '#ef6c00' : '#2e7d32';
-                    summary.innerHTML = `📊 上传完成！成功 ${result.success_count} 个${result.error_count > 0 ? `，失败 ${result.error_count} 个` : ''}`;
-                }
-                summary.style.borderRadius = '6px';
-                summary.style.fontWeight = '500';
-                uploadResult.appendChild(summary);
-                
-            } catch (error) {
-                // 显示错误状态
-                const errorItem = document.createElement('div');
-                errorItem.className = 'upload-item error';
-                errorItem.innerHTML = `<span>❌</span> 上传失败: ${error.message}`;
-                uploadResult.appendChild(errorItem);
+            // 先获取签名
+            const gotSignature = await getCloudinarySignature();
+            if (!gotSignature) {
+                isUploading = false;
+                startUploadBtn.disabled = false;
+                startUploadBtn.textContent = '开始上传';
+                return;
             }
+
+            // 逐个上传文件
+            for (let i = 0; i < selectedFiles.length; i++) {
+                const file = selectedFiles[i];
+                const item = document.getElementById(`upload-item-${i}`);
+                
+                if (item) {
+                    item.className = 'upload-item uploading';
+                    item.innerHTML = `<span>⏳</span> ${file.name} - 上传中...`;
+                }
+                
+                // 1. 直传到 Cloudinary
+                const cloudinaryResult = await uploadToCloudinary(file, i);
+                
+                if (cloudinaryResult.success) {
+                    // 2. 保存记录到服务器
+                    const saveResult = await saveUploadRecord({
+                        cloudinary_url: cloudinaryResult.cloudinary_url,
+                        cloudinary_public_id: cloudinaryResult.cloudinary_public_id,
+                        original_filename: cloudinaryResult.original_filename,
+                        file_size: cloudinaryResult.file_size
+                    });
+                    
+                    if (saveResult.success) {
+                        if (item) {
+                            item.className = 'upload-item success';
+                            item.innerHTML = `<span>✅</span> ${file.name} - 上传成功`;
+                        }
+                        successCount++;
+                    } else {
+                        if (item) {
+                            item.className = 'upload-item error';
+                            item.innerHTML = `<span>❌</span> ${file.name} - 保存记录失败: ${saveResult.message}`;
+                        }
+                        errorCount++;
+                    }
+                } else {
+                    if (item) {
+                        item.className = 'upload-item error';
+                        item.innerHTML = `<span>❌</span> ${file.name} - ${cloudinaryResult.message}`;
+                    }
+                    errorCount++;
+                }
+                
+                completed++;
+                const percent = Math.round((completed / total) * 100);
+                progressText.textContent = `正在上传 ${completed}/${total}`;
+                progressPercent.textContent = `${percent}%`;
+                progressBar.style.width = `${percent}%`;
+            }
+            
+            // 显示统计结果
+            const summary = document.createElement('div');
+            summary.style.marginTop = '15px';
+            summary.style.padding = '10px';
+            summary.style.borderRadius = '6px';
+            summary.style.fontWeight = '500';
+            
+            if (errorCount === 0) {
+                summary.style.background = '#e8f5e9';
+                summary.style.color = '#2e7d32';
+                summary.innerHTML = `🎉 上传完成！成功 ${successCount} 个`;
+            } else {
+                summary.style.background = '#fff3e0';
+                summary.style.color = '#ef6c00';
+                summary.innerHTML = `📊 上传完成！成功 ${successCount} 个，失败 ${errorCount} 个`;
+            }
+            uploadResult.appendChild(summary);
             
             isUploading = false;
             startUploadBtn.disabled = false;
