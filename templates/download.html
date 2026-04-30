@@ -804,6 +804,21 @@
             <h1 class="home-title">视频派发系统</h1>
             <p class="home-subtitle">点击按钮，随机下载一个视频</p>
             
+            <!-- 下载按钮 -->
+            {% if can_download and stats.available_total > 0 %}
+            <a href="{{ url_for('download_action') }}" class="download-btn" id="main-download-btn">
+                <span>⬇️</span> 随机下载视频/图片组
+            </a>
+            {% elif not can_download %}
+            <button class="download-btn" disabled>
+                <span>✅</span> 今日已下载
+            </button>
+            {% else %}
+            <button class="download-btn" disabled>
+                <span>📭</span> 暂无可领取内容
+            </button>
+            {% endif %}
+            
             <!-- 公告区域 -->
             {% if announcements %}
             <div class="announcement-area">
@@ -826,21 +841,6 @@
             </div>
             {% endif %}
             
-            <!-- 下载按钮 -->
-            {% if can_download and stats.available_total > 0 %}
-            <a href="{{ url_for('download_action') }}" class="download-btn" id="main-download-btn">
-                <span>⬇️</span> 随机下载视频/图片组
-            </a>
-            {% elif not can_download %}
-            <button class="download-btn" disabled>
-                <span>✅</span> 今日已下载
-            </button>
-            {% else %}
-            <button class="download-btn" disabled>
-                <span>📭</span> 暂无可领取内容
-            </button>
-            {% endif %}
-            
             <!-- 视频池状态 -->
             <div class="video-status">
                 <div class="status-item">
@@ -851,18 +851,6 @@
                     <div class="status-value">{{ records|length }}</div>
                     <div class="status-label">我的下载</div>
                 </div>
-            </div>
-            
-            <!-- 说明 -->
-            <div class="info-card">
-                <div class="info-title">
-                    <span>💡</span> 温馨提示
-                </div>
-                <ul class="info-list">
-                    <li>每个设备每天只能下载一次视频</li>
-                    <li>下载后视频将从池子移除，不会重复</li>
-                    <li>如需重新下载，可点击下方历史记录</li>
-                </ul>
             </div>
             
             <!-- 我的下载记录 -->
