@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 视频派发网站 - Flask 主程序
-支持本地开发（SQLite + 本地文件）和云端部署（PostgreSQL + Cloudinary）
+适配 PythonAnywhere 免费部署（SQLite + Cloudinary）
 """
 
 import os
@@ -9,9 +9,13 @@ import uuid
 import tempfile
 import shutil
 from datetime import datetime
-from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, Response
+from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
+
+# 加载 .env 环境变量
+from dotenv import load_dotenv
+load_dotenv()
+
 from werkzeug.utils import secure_filename
-from urllib.parse import urlparse
 
 from models import (
     init_db, add_user, verify_user, get_user_by_id,
@@ -148,6 +152,25 @@ def format_datetime(dt_str):
     return ''
 
 
+def get_cloudinary_download_url(cloudinary_url, original_filename):
+    """
+    获取 Cloudinary 直接下载链接
+    避免服务器中转，节省 CPU 秒数
+    """
+    if not cloudinary_url:
+        return None
+    
+    # Cloudinary 的直接下载链接格式：在 URL 后面加上 ?fl_attachment
+    # 或者使用 /fl_attachment/ 路径
+    base_url = cloudinary_url.split('/upload/')[0] + '/upload/'
+    path_part = cloudinary_url.split('/upload/')[1] if '/upload/' in cloudinary_url else cloudinary_url
+    
+    # 构建下载 URL，使用 fl_attachment 强制下载
+    download_url = base_url + 'fl_attachment/' + path_part
+    
+    return download_url
+
+
 # ============== 启动时初始化 ==============
 with app.app_context():
     init_db()
@@ -227,7 +250,10 @@ def download_page():
 
 @app.route('/download/action')
 def download_action():
-    """执行随机下载"""
+    """
+    执行随机下载
+    分配视频后直接重定向到 Cloudinary 下载链接
+    """
     client_id = get_client_identifier()
     device_info = get_device_info()
     
@@ -241,6 +267,17 @@ def download_action():
     
     if video:
         flash(f'下载成功！视频 "{video["original_filename"]}" 已从池子移除', 'success')
+        
+        # 直接重定向到 Cloudinary 下载链接，节省 CPU 秒数
+        if USE_CLOUDINARY and video.get('cloudinary_url'):
+            download_url = get_cloudinary_download_url(
+                video['cloudinary_url'], 
+                video['original_filename']
+            )
+            if download_url:
+                return redirect(download_url)
+        
+        # 如果没有 Cloudinary，回退到下载页面
         return redirect(url_for('download_success', video_id=video['id']))
     else:
         flash('暂无可下载的视频，请联系管理员上传新视频', 'warning')
@@ -249,7 +286,7 @@ def download_action():
 
 @app.route('/download/success/<int:video_id>')
 def download_success(video_id):
-    """下载成功页面"""
+    """下载成功页面（用于本地存储的回退）"""
     video = get_video_by_id(video_id)
     if not video:
         flash('视频不存在', 'error')
@@ -260,7 +297,10 @@ def download_success(video_id):
 
 @app.route('/download/file/<int:video_id>')
 def download_file(video_id):
-    """下载视频文件（支持本地和 Cloudinary）"""
+    """
+    下载视频文件（本地存储回退）
+    Cloudinary 模式下直接重定向，不走此路由
+    """
     video = get_video_by_id(video_id)
     if not video:
         flash('视频不存在', 'error')
@@ -268,43 +308,27 @@ def download_file(video_id):
     
     original_filename = video['original_filename']
     
+    # Cloudinary 模式下不应该走到这里，因为 download_action 已直接重定向
+    # 这里作为备用方案：如果有 Cloudinary URL 但还是走到这里，则生成下载链接
     if USE_CLOUDINARY and video.get('cloudinary_url'):
-        # 从 Cloudinary 下载
-        cloudinary_url = video['cloudinary_url']
-        
-        try:
-            import requests
-            resp = requests.get(cloudinary_url, stream=True, timeout=300)
-            resp.raise_for_status()
-            
-            def generate():
-                for chunk in resp.iter_content(chunk_size=8192):
-                    if chunk:
-                        yield chunk
-            
-            # 获取内容类型
-            content_type = resp.headers.get('Content-Type', 'video/mp4')
-            
-            return Response(
-                generate(),
-                headers={
-                    'Content-Type': content_type,
-                    'Content-Disposition': f'attachment; filename="{original_filename}"',
-                    'Content-Length': resp.headers.get('Content-Length', 0)
-                }
-            )
-        except Exception as e:
-            flash(f'从云端下载视频失败: {str(e)}', 'error')
-            return redirect(url_for('download_page'))
-    elif video.get('stored_filename'):
-        # 本地文件下载
-        from flask import send_from_directory
-        return send_from_directory(
-            app.config.get('UPLOAD_FOLDER', UPLOAD_FOLDER), 
-            video['stored_filename'],
-            as_attachment=True,
-            download_name=original_filename
+        download_url = get_cloudinary_download_url(
+            video['cloudinary_url'], 
+            original_filename
         )
+        if download_url:
+            return redirect(download_url)
+    
+    # 本地文件下载
+    if video.get('stored_filename'):
+        from flask import send_from_directory
+        file_path = os.path.join(UPLOAD_FOLDER, video['stored_filename'])
+        if os.path.exists(file_path):
+            return send_from_directory(
+                UPLOAD_FOLDER, 
+                video['stored_filename'],
+                as_attachment=True,
+                download_name=original_filename
+            )
     
     flash('视频文件不存在', 'error')
     return redirect(url_for('download_page'))
@@ -500,7 +524,7 @@ def upload_video():
     return redirect(url_for('upload_page'))
 
 
-# ============== 健康检查（Render 需要） ==============
+# ============== 健康检查 ==============
 
 @app.route('/health')
 def health_check():

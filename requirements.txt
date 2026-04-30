@@ -5,14 +5,11 @@ Werkzeug==3.0.1
 # WSGI Server (for production)
 gunicorn==21.2.0
 
-# Database
-psycopg2-binary==2.9.9
-
 # Cloud Storage
 cloudinary==1.36.0
 
-# HTTP Client (for Cloudinary downloads)
-requests==2.31.0
-
 # Security
 bcrypt==4.1.2
+
+# Environment Variables
+python-dotenv==1.0.0
