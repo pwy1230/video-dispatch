@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>管理后台 - 视频派发系统</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="page-wrapper">
+        <!-- 导航栏 -->
+        <nav class="navbar">
+            <div class="navbar-content">
+                <a href="{{ url_for('admin_dashboard') }}" class="navbar-brand">
+                    <span class="icon">🎬</span>
+                    视频派发系统
+                </a>
+                
+                <div class="navbar-nav">
+                    <div class="user-info">
+                        <span>{{ session.username }}</span>
+                        <span class="user-role admin">管理员</span>
+                    </div>
+                    <a href="{{ url_for('logout') }}" class="nav-link">
+                        <span>🚪</span>
+                        退出
+                    </a>
+                </div>
+            </div>
+        </nav>
+
+        <!-- 主内容 -->
+        <main class="container">
+            <!-- Flash 消息 -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+            <div class="flash-messages">
+                {% for category, message in messages %}
+                <div class="flash flash-{{ category }}">
+                    <span>{{ message }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+            {% endwith %}
+
+            <!-- 统计卡片 -->
+            <div class="stats-grid mt-3">
+                <div class="stat-card">
+                    <div class="stat-icon">🎬</div>
+                    <div class="stat-value">{{ stats.available_videos }}</div>
+                    <div class="stat-label">待分发视频</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">✅</div>
+                    <div class="stat-value">{{ stats.assigned_videos }}</div>
+                    <div class="stat-label">已分发视频</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">👥</div>
+                    <div class="stat-value">{{ stats.employee_count }}</div>
+                    <div class="stat-label">员工数量</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">📥</div>
+                    <div class="stat-value">{{ stats.total_downloads }}</div>
+                    <div class="stat-label">下载记录</div>
+                </div>
+            </div>
+
+            <!-- 内容区域 -->
+            <div class="grid-2">
+                <!-- 用户管理 -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">👥 用户管理</h2>
+                        <button class="btn btn-primary btn-sm" onclick="openModal('add-user-modal')">
+                            <span>+</span> 添加用户
+                        </button>
+                    </div>
+                    
+                    <div class="table-wrapper">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>用户名</th>
+                                    <th>角色</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for user in users %}
+                                <tr>
+                                    <td>{{ user.username }}</td>
+                                    <td>
+                                        <span class="badge 
+                                            {% if user.role == 'admin' %}badge-assigned
+                                            {% elif user.role == 'uploader' %}badge-available
+                                            {% else %}badge-assigned{% endif %}">
+                                            {% if user.role == 'admin' %}管理员
+                                            {% elif user.role == 'uploader' %}外包
+                                            {% else %}员工{% endif %}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        {% if user.role != 'admin' %}
+                                        <a href="/admin/delete_user/{{ user.id }}" 
+                                           class="btn btn-danger btn-sm btn-delete"
+                                           data-message="确定要删除用户 {{ user.username }} 吗？">
+                                            删除
+                                        </a>
+                                        {% else %}
+                                        <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 视频池状态 -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">📦 视频池状态</h2>
+                        <span class="text-muted">共 {{ stats.total_videos }} 个视频</span>
+                    </div>
+                    
+                    <div class="table-wrapper">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>文件名</th>
+                                    <th>大小</th>
+                                    <th>状态</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for video in videos %}
+                                <tr>
+                                    <td class="video-name" title="{{ video.original_filename }}">
+                                        {{ video.original_filename }}
+                                    </td>
+                                    <td>{{ video.file_size_fmt }}</td>
+                                    <td>
+                                        <span class="badge {% if video.is_assigned %}badge-assigned{% else %}badge-available{% endif %}">
+                                            {% if video.is_assigned %}已分发{% else %}待分发{% endif %}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        {% if not video.is_assigned %}
+                                        <a href="/admin/delete_video/{{ video.id }}" 
+                                           class="btn btn-danger btn-sm btn-delete"
+                                           data-message="确定要删除视频 {{ video.original_filename }} 吗？">
+                                            删除
+                                        </a>
+                                        {% else %}
+                                        <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="4" class="text-center text-muted">暂无视频</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 下载记录 -->
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h2 class="card-title">📋 最新下载记录</h2>
+                </div>
+                
+                <div class="table-wrapper">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>员工</th>
+                                <th>视频文件</th>
+                                <th>下载时间</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for record in records %}
+                            <tr>
+                                <td>{{ record.username }}</td>
+                                <td class="video-name" title="{{ record.original_filename }}">
+                                    {{ record.original_filename }}
+                                </td>
+                                <td>{{ record.downloaded_fmt }}</td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="3" class="text-center text-muted">暂无下载记录</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- 添加用户模态框 -->
+    <div class="modal-overlay" id="add-user-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">添加新用户</h3>
+                <button class="modal-close" onclick="closeModal('add-user-modal')">×</button>
+            </div>
+            
+            <form action="{{ url_for('admin_add_user') }}" method="POST">
+                <div class="form-group">
+                    <label class="form-label" for="username">用户名</label>
+                    <input type="text" id="username" name="username" class="form-input" 
+                           placeholder="输入用户名" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label" for="password">密码</label>
+                    <input type="password" id="password" name="password" class="form-input" 
+                           placeholder="输入密码" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label" for="role">角色</label>
+                    <select id="role" name="role" class="form-select">
+                        <option value="employee">员工（下载者）</option>
+                        <option value="uploader">外包（上传者）</option>
+                    </select>
+                </div>
+                
+                <div class="flex flex-gap mt-2">
+                    <button type="button" class="btn btn-secondary" 
+                            onclick="closeModal('add-user-modal')">取消</button>
+                    <button type="submit" class="btn btn-primary">确认添加</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>

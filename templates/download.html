@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>视频下载 - 视频派发系统</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        /* 首页专用样式 */
+        .home-hero {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            text-align: center;
+            background: linear-gradient(135deg, var(--bg-dark) 0%, #1a1f35 50%, #0f172a 100%);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .home-hero::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(59, 130, 246, 0.1) 0%, transparent 50%);
+            animation: pulse 8s ease-in-out infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); opacity: 0.5; }
+            50% { transform: scale(1.1); opacity: 0.8; }
+        }
+        
+        .home-content {
+            position: relative;
+            z-index: 1;
+            width: 100%;
+            max-width: 500px;
+        }
+        
+        .home-logo {
+            font-size: 5rem;
+            margin-bottom: 20px;
+            animation: float 3s ease-in-out infinite;
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-15px); }
+        }
+        
+        .home-title {
+            font-size: 1.8rem;
+            font-weight: 700;
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, var(--text-primary), var(--primary-light));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .home-subtitle {
+            color: var(--text-secondary);
+            margin-bottom: 40px;
+            font-size: 1rem;
+        }
+        
+        /* 下载按钮 - 超大醒目 */
+        .download-btn {
+            display: block;
+            width: 100%;
+            padding: 24px 32px;
+            font-size: 1.4rem;
+            font-weight: 700;
+            border-radius: 20px;
+            background: linear-gradient(135deg, var(--success) 0%, #059669 100%);
+            color: white;
+            border: none;
+            cursor: pointer;
+            text-decoration: none;
+            box-shadow: 0 10px 40px rgba(16, 185, 129, 0.4);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .download-btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transition: left 0.5s;
+        }
+        
+        .download-btn:hover::before,
+        .download-btn:active::before {
+            left: 100%;
+        }
+        
+        .download-btn:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 15px 50px rgba(16, 185, 129, 0.5);
+        }
+        
+        .download-btn:active {
+            transform: translateY(-2px) scale(0.98);
+        }
+        
+        .download-btn:disabled {
+            background: linear-gradient(135deg, var(--secondary) 0%, #475569 100%);
+            box-shadow: none;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .download-btn:disabled::before {
+            display: none;
+        }
+        
+        /* 视频池状态 */
+        .video-status {
+            margin-top: 30px;
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+        }
+        
+        .status-item {
+            text-align: center;
+        }
+        
+        .status-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--primary-light);
+        }
+        
+        .status-label {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+        
+        /* 提示信息 */
+        .info-card {
+            margin-top: 30px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 16px;
+            padding: 20px;
+            text-align: left;
+        }
+        
+        .info-title {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .info-list {
+            list-style: none;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+        
+        .info-list li {
+            padding: 6px 0;
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+        }
+        
+        .info-list li::before {
+            content: '•';
+            color: var(--primary);
+            font-weight: bold;
+        }
+        
+        /* 我的下载记录 */
+        .my-downloads {
+            margin-top: 40px;
+            width: 100%;
+        }
+        
+        .section-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-primary);
+        }
+        
+        .download-list {
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        
+        .download-item {
+            padding: 16px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+        
+        .download-item:last-child {
+            border-bottom: none;
+        }
+        
+        .download-info {
+            flex: 1;
+            min-width: 0;
+        }
+        
+        .download-name {
+            font-size: 0.95rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-bottom: 4px;
+        }
+        
+        .download-time {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+        
+        .re-download-btn {
+            padding: 8px 16px;
+            font-size: 0.85rem;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-primary);
+            text-decoration: none;
+            white-space: nowrap;
+            transition: all 0.2s;
+        }
+        
+        .re-download-btn:hover {
+            background: var(--primary);
+            border-color: var(--primary);
+        }
+        
+        .empty-records {
+            text-align: center;
+            padding: 30px;
+            color: var(--text-secondary);
+        }
+        
+        /* 管理员入口 */
+        .admin-link {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 10px 16px;
+            font-size: 0.85rem;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+        
+        .admin-link:hover {
+            background: rgba(255, 255, 255, 0.15);
+            color: var(--text-primary);
+        }
+        
+        /* 移动端优化 */
+        @media (max-width: 480px) {
+            .home-title {
+                font-size: 1.5rem;
+            }
+            
+            .download-btn {
+                padding: 20px 24px;
+                font-size: 1.2rem;
+            }
+            
+            .video-status {
+                gap: 20px;
+            }
+            
+            .status-value {
+                font-size: 1.6rem;
+            }
+            
+            .info-card {
+                padding: 16px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Flash 消息 -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    <div class="flash-messages">
+        {% for category, message in messages %}
+        <div class="flash flash-{{ category }}">
+            <span>{{ message }}</span>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    {% endwith %}
+
+    <!-- 首页内容 -->
+    <div class="home-hero">
+        <div class="home-content">
+            <div class="home-logo">🎬</div>
+            <h1 class="home-title">视频派发系统</h1>
+            <p class="home-subtitle">点击按钮，随机下载一个视频</p>
+            
+            <!-- 下载按钮 -->
+            {% if can_download and stats.available_videos > 0 %}
+            <a href="{{ url_for('download_action') }}" class="download-btn" id="main-download-btn">
+                <span>⬇️</span> 随机下载视频
+            </a>
+            {% elif not can_download %}
+            <button class="download-btn" disabled>
+                <span>✅</span> 今日已下载
+            </button>
+            {% else %}
+            <button class="download-btn" disabled>
+                <span>📭</span> 暂无可下载视频
+            </button>
+            {% endif %}
+            
+            <!-- 视频池状态 -->
+            <div class="video-status">
+                <div class="status-item">
+                    <div class="status-value">{{ stats.available_videos }}</div>
+                    <div class="status-label">待下载视频</div>
+                </div>
+                <div class="status-item">
+                    <div class="status-value">{{ records|length }}</div>
+                    <div class="status-label">我的下载</div>
+                </div>
+            </div>
+            
+            <!-- 说明 -->
+            <div class="info-card">
+                <div class="info-title">
+                    <span>💡</span> 温馨提示
+                </div>
+                <ul class="info-list">
+                    <li>每个设备每天只能下载一次视频</li>
+                    <li>下载后视频将从池子移除，不会重复</li>
+                    <li>如需重新下载，可点击下方历史记录</li>
+                </ul>
+            </div>
+            
+            <!-- 我的下载记录 -->
+            {% if records %}
+            <div class="my-downloads">
+                <h3 class="section-title">
+                    <span>📋</span> 我的下载记录
+                </h3>
+                <div class="download-list">
+                    {% for record in records %}
+                    <div class="download-item">
+                        <div class="download-info">
+                            <div class="download-name" title="{{ record.original_filename }}">
+                                🎥 {{ record.original_filename }}
+                            </div>
+                            <div class="download-time">{{ record.downloaded_fmt }}</div>
+                        </div>
+                        <a href="{{ url_for('download_file', video_id=record.video_id) }}" class="re-download-btn">
+                            重新下载
+                        </a>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <!-- 管理员入口 -->
+    <a href="{{ url_for('login') }}" class="admin-link">
+        <span>🔐</span> 管理入口
+    </a>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script>
+        // 点击下载按钮后显示加载状态
+        document.getElementById('main-download-btn')?.addEventListener('click', function(e) {
+            const originalText = this.innerHTML;
+            this.innerHTML = '<span>⏳</span> 下载中...';
+            this.style.pointerEvents = 'none';
+            
+            // 1秒后恢复（如果没有跳转的话）
+            setTimeout(() => {
+                this.innerHTML = originalText;
+                this.style.pointerEvents = 'auto';
+            }, 5000);
+        });
+    </script>
+</body>
+</html>

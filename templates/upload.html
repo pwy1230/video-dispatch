@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>上传视频 - 视频派发系统</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="page-wrapper">
+        <!-- 导航栏 -->
+        <nav class="navbar">
+            <div class="navbar-content">
+                <a href="{{ url_for('upload_page') }}" class="navbar-brand">
+                    <span class="icon">🎬</span>
+                    视频派发系统
+                </a>
+                
+                <div class="navbar-nav">
+                    <a href="{{ url_for('upload_page') }}" class="nav-link active">
+                        <span>📤</span>
+                        上传视频
+                    </a>
+                    <div class="user-info">
+                        <span>{{ session.username }}</span>
+                        <span class="user-role uploader">外包</span>
+                    </div>
+                    <a href="{{ url_for('logout') }}" class="nav-link">
+                        <span>🚪</span>
+                        退出
+                    </a>
+                </div>
+            </div>
+        </nav>
+
+        <!-- 主内容 -->
+        <main class="container">
+            <!-- Flash 消息 -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+            <div class="flash-messages">
+                {% for category, message in messages %}
+                <div class="flash flash-{{ category }}">
+                    <span>{{ message }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+            {% endwith %}
+
+            <!-- 上传区域 -->
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h2 class="card-title">📤 上传视频到视频池</h2>
+                    <span class="text-muted">支持 MP4、AVI、MOV、MKV 格式，最大 500MB</span>
+                </div>
+                
+                <form id="upload-form" action="{{ url_for('upload_video') }}" method="POST" 
+                      enctype="multipart/form-data">
+                    <div class="upload-zone">
+                        <div class="upload-zone-icon">📁</div>
+                        <div class="upload-zone-text">点击或拖拽视频文件到此处上传</div>
+                        <div class="upload-zone-hint">支持 MP4、AVI、MOV、MKV、WEBM 格式</div>
+                        <input type="file" name="video" class="upload-input" 
+                               accept="video/*,.mp4,.avi,.mov,.mkv,.webm,.flv,.wmv">
+                    </div>
+                </form>
+            </div>
+
+            <!-- 已上传视频列表 -->
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h2 class="card-title">📋 视频池 - 待分发视频</h2>
+                    <span class="text-muted">共 {{ videos|length }} 个视频</span>
+                </div>
+                
+                <div class="table-wrapper">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>文件名</th>
+                                <th>大小</th>
+                                <th>上传时间</th>
+                                <th>上传者</th>
+                                <th>状态</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for video in videos %}
+                            <tr>
+                                <td class="video-name" title="{{ video.original_filename }}">
+                                    {{ video.original_filename }}
+                                </td>
+                                <td>{{ video.file_size_fmt }}</td>
+                                <td>{{ video.uploaded_fmt }}</td>
+                                <td>{{ video.uploader_name }}</td>
+                                <td>
+                                    <span class="badge badge-available">待分发</span>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="5" class="text-center text-muted">
+                                    <p style="padding: 40px 0;">🎬 暂无待分发的视频</p>
+                                    <p>上传第一个视频开始吧！</p>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 提示信息 -->
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h2 class="card-title">💡 使用提示</h2>
+                </div>
+                <div class="text-muted">
+                    <p>• 视频上传后将进入"视频池"，等待系统随机分配给员工</p>
+                    <p>• 员工每次下载会随机获得一个视频，下载后该视频从池子移除</p>
+                    <p>• 视频不需要分类，系统会随机分配</p>
+                    <p>• 如需删除视频，请联系管理员处理</p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>

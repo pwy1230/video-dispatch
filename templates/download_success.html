@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>下载成功 - 视频派发系统</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        .success-page {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            text-align: center;
+            background: linear-gradient(135deg, var(--bg-dark) 0%, #1a1f35 50%, #0f172a 100%);
+        }
+        
+        .success-icon {
+            font-size: 6rem;
+            margin-bottom: 24px;
+            animation: success-bounce 0.6s ease;
+        }
+        
+        @keyframes success-bounce {
+            0% { transform: scale(0); }
+            50% { transform: scale(1.2); }
+            100% { transform: scale(1); }
+        }
+        
+        .success-title {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--success);
+            margin-bottom: 16px;
+        }
+        
+        .success-message {
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+            margin-bottom: 32px;
+            max-width: 400px;
+        }
+        
+        .video-card {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 16px;
+            padding: 24px;
+            width: 100%;
+            max-width: 400px;
+            margin-bottom: 32px;
+            text-align: left;
+        }
+        
+        .video-label {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+        }
+        
+        .video-name {
+            font-size: 1.1rem;
+            font-weight: 600;
+            word-break: break-all;
+            margin-bottom: 16px;
+        }
+        
+        .video-badge {
+            display: inline-block;
+            background: rgba(16, 185, 129, 0.2);
+            color: var(--success);
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+        }
+        
+        .action-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            width: 100%;
+            max-width: 300px;
+        }
+        
+        .btn-back {
+            padding: 16px 32px;
+            font-size: 1rem;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            color: var(--text-primary);
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+        
+        .btn-back:hover {
+            background: var(--border);
+        }
+        
+        .btn-download {
+            padding: 16px 32px;
+            font-size: 1rem;
+            background: linear-gradient(135deg, var(--success) 0%, #059669 100%);
+            border: none;
+            border-radius: 12px;
+            color: white;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: all 0.2s;
+        }
+        
+        .btn-download:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(16, 185, 129, 0.4);
+        }
+        
+        .info-note {
+            margin-top: 32px;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="success-page">
+        <div class="success-icon">✅</div>
+        <h1 class="success-title">下载成功！</h1>
+        <p class="success-message">视频已从池子移除，感谢您的使用</p>
+        
+        <div class="video-card">
+            <div class="video-label">文件名</div>
+            <div class="video-name">🎬 {{ video.original_filename }}</div>
+            <div class="video-badge">✓ 已从池子移除</div>
+        </div>
+        
+        <div class="action-buttons">
+            <a href="{{ url_for('download_file', video_id=video.id) }}" class="btn-download" id="download-link">
+                <span>⬇️</span> 立即下载视频
+            </a>
+            <a href="{{ url_for('download_page') }}" class="btn-back">
+                返回首页
+            </a>
+        </div>
+        
+        <p class="info-note">如视频未开始下载，请点击上方按钮重试</p>
+    </div>
+
+    <script>
+        // 页面加载后自动触发下载
+        window.addEventListener('load', function() {
+            setTimeout(function() {
+                document.getElementById('download-link').click();
+            }, 500);
+        });
+    </script>
+</body>
+</html>
