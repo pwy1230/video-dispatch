@@ -629,6 +629,106 @@ def admin_delete_image_group(video_id):
     return redirect(url_for('admin_dashboard'))
 
 
+@app.route('/api/batch-delete', methods=['POST'])
+@login_required(role='admin')
+def api_batch_delete():
+    """
+    API: 批量删除视频或图片组
+    接收JSON格式: {"items": [{"id": 1, "type": "video"}, {"id": 2, "type": "image_group"}]}
+    """
+    data = request.get_json()
+    
+    if not data or 'items' not in data:
+        return jsonify({'success': False, 'message': '缺少参数'}), 400
+    
+    items = data.get('items', [])
+    if not items:
+        return jsonify({'success': False, 'message': '没有要删除的项目'}), 400
+    
+    deleted_count = 0
+    errors = []
+    
+    for item in items:
+        item_id = item.get('id')
+        item_type = item.get('type')
+        
+        if not item_id or not item_type:
+            errors.append(f'项目数据不完整: {item}')
+            continue
+        
+        try:
+            video = get_video_by_id(item_id)
+            
+            if not video:
+                errors.append(f'项目 #{item_id} 不存在')
+                continue
+            
+            # 检查是否已被分配
+            if video.get('is_assigned'):
+                errors.append(f'{video["original_filename"]} 已被分配，无法删除')
+                continue
+            
+            if item_type == 'image_group':
+                # 删除图片组及其所有图片
+                deleted, public_ids = delete_image_group(item_id)
+                
+                if deleted:
+                    # 删除 Cloudinary 上的图片文件
+                    if USE_CLOUDINARY:
+                        for public_id in public_ids:
+                            try:
+                                cloudinary.uploader.destroy(public_id, resource_type='image')
+                                print(f"✓ [批量] 已删除 Cloudinary 上的图片: {public_id}")
+                            except Exception as e:
+                                print(f"⚠ [批量] 删除 Cloudinary 图片失败: {e}")
+                    
+                    deleted_count += 1
+                    print(f"✓ [批量] 已删除图片组: {video['original_filename']}")
+                else:
+                    errors.append(f'删除图片组失败: {video["original_filename"]}')
+            
+            elif item_type == 'video':
+                # 删除单个视频
+                # 删除 Cloudinary 上的文件
+                if USE_CLOUDINARY and video.get('cloudinary_public_id'):
+                    try:
+                        cloudinary.uploader.destroy(video['cloudinary_public_id'])
+                        print(f"✓ [批量] 已删除 Cloudinary 上的视频: {video['cloudinary_public_id']}")
+                    except Exception as e:
+                        print(f"⚠ [批量] 删除 Cloudinary 文件失败: {e}")
+                
+                # 删除本地文件
+                file_path = os.path.join(UPLOAD_FOLDER, video.get('stored_filename', ''))
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+                
+                if delete_video(item_id):
+                    deleted_count += 1
+                    print(f"✓ [批量] 已删除视频: {video['original_filename']}")
+                else:
+                    errors.append(f'删除视频失败: {video["original_filename"]}')
+            else:
+                errors.append(f'未知类型: {item_type}')
+        
+        except Exception as e:
+            errors.append(f'删除项目 #{item_id} 时出错: {str(e)}')
+            print(f"⚠ [批量] 删除失败: {e}")
+    
+    if deleted_count > 0:
+        return jsonify({
+            'success': True,
+            'message': f'成功删除 {deleted_count} 个项目' + (f'，{len(errors)} 个失败' if errors else ''),
+            'deleted_count': deleted_count,
+            'errors': errors
+        })
+    else:
+        return jsonify({
+            'success': False,
+            'message': '删除失败: ' + '; '.join(errors) if errors else '没有删除任何项目',
+            'errors': errors
+        }), 400
+
+
 # ============== 外包上传端 ==============
 
 @app.route('/upload')

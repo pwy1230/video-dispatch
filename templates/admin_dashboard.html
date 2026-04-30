@@ -124,13 +124,21 @@
                 <div class="card">
                     <div class="card-header">
                         <h2 class="card-title">📦 视频池状态</h2>
-                        <span class="text-muted">共 {{ stats.total_videos }} 个视频，{{ stats.total_image_groups }} 个图片组</span>
+                        <div class="flex items-center gap-2">
+                            <span class="text-muted">共 {{ stats.total_videos }} 个视频，{{ stats.total_image_groups }} 个图片组</span>
+                            <button id="batch-delete-btn" class="btn btn-danger btn-sm" style="display: none;" onclick="batchDelete()">
+                                <span>🗑️</span> 批量删除 (<span id="selected-count">0</span>)
+                            </button>
+                        </div>
                     </div>
                     
                     <div class="table-wrapper">
                         <table class="table">
                             <thead>
                                 <tr>
+                                    <th style="width: 40px;">
+                                        <input type="checkbox" id="select-all" onchange="toggleSelectAll(this)">
+                                    </th>
                                     <th>类型</th>
                                     <th>文件名</th>
                                     <th>大小</th>
@@ -141,7 +149,14 @@
                             </thead>
                             <tbody>
                                 {% for video in videos %}
-                                <tr>
+                                <tr data-id="{{ video.id }}" data-type="{{ video.type }}" class="{% if video.is_assigned %}disabled-row{% endif %}">
+                                    <td>
+                                        <input type="checkbox" class="video-checkbox" 
+                                               value="{{ video.id }}" 
+                                               data-type="{{ video.type }}"
+                                               onchange="updateSelection()"
+                                               {% if video.is_assigned %}disabled{% endif %}>
+                                    </td>
                                     <td>
                                         {% if video.type == 'image_group' %}
                                         <span class="badge" style="background: #8b5cf6;">🖼️ 图片组</span>
@@ -184,7 +199,7 @@
                                 </tr>
                                 {% else %}
                                 <tr>
-                                    <td colspan="5" class="text-center text-muted">暂无内容</td>
+                                    <td colspan="7" class="text-center text-muted">暂无内容</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
@@ -311,6 +326,107 @@
         document.addEventListener('DOMContentLoaded', function() {
             initModals();
         });
+
+        // 全选/取消全选
+        function toggleSelectAll(checkbox) {
+            const checkboxes = document.querySelectorAll('.video-checkbox:not(:disabled)');
+            checkboxes.forEach(cb => {
+                cb.checked = checkbox.checked;
+            });
+            updateSelection();
+        }
+
+        // 更新选择状态
+        function updateSelection() {
+            const checkboxes = document.querySelectorAll('.video-checkbox:not(:disabled)');
+            const selectedCount = document.querySelectorAll('.video-checkbox:not(:disabled):checked').length;
+            const batchBtn = document.getElementById('batch-delete-btn');
+            const countSpan = document.getElementById('selected-count');
+
+            // 更新已选数量
+            countSpan.textContent = selectedCount;
+
+            // 显示/隐藏批量删除按钮
+            if (selectedCount > 0) {
+                batchBtn.style.display = 'inline-flex';
+            } else {
+                batchBtn.style.display = 'none';
+            }
+
+            // 更新全选复选框状态
+            const selectAll = document.getElementById('select-all');
+            const totalCheckboxes = document.querySelectorAll('.video-checkbox:not(:disabled)');
+            selectAll.checked = selectedCount === totalCheckboxes.length && totalCheckboxes.length > 0;
+            selectAll.indeterminate = selectedCount > 0 && selectedCount < totalCheckboxes.length;
+        }
+
+        // 批量删除
+        function batchDelete() {
+            const checkboxes = document.querySelectorAll('.video-checkbox:not(:disabled):checked');
+            if (checkboxes.length === 0) {
+                alert('请先选择要删除的项目');
+                return;
+            }
+
+            const selectedItems = [];
+            checkboxes.forEach(cb => {
+                selectedItems.push({
+                    id: parseInt(cb.value),
+                    type: cb.dataset.type
+                });
+            });
+
+            const typeCount = {
+                video: selectedItems.filter(i => i.type === 'video').length,
+                image_group: selectedItems.filter(i => i.type === 'image_group').length
+            };
+
+            let message = `确定要删除选中的项目吗？\n\n`;
+            if (typeCount.video > 0) {
+                message += `- ${typeCount.video} 个视频\n`;
+            }
+            if (typeCount.image_group > 0) {
+                message += `- ${typeCount.image_group} 个图片组\n`;
+            }
+            message += `\n此操作不可恢复！`;
+
+            if (!confirm(message)) {
+                return;
+            }
+
+            // 显示加载状态
+            const batchBtn = document.getElementById('batch-delete-btn');
+            batchBtn.disabled = true;
+            batchBtn.innerHTML = '<span>⏳</span> 删除中...';
+
+            // 发送删除请求
+            fetch('/api/batch-delete', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ items: selectedItems })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert(`成功删除 ${data.deleted_count} 个项目`);
+                    window.location.reload();
+                } else {
+                    alert('删除失败: ' + data.message);
+                    batchBtn.disabled = false;
+                    batchBtn.innerHTML = '<span>🗑️</span> 批量删除 (<span id="selected-count">0</span>)';
+                    updateSelection();
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('删除失败，请重试');
+                batchBtn.disabled = false;
+                batchBtn.innerHTML = '<span>🗑️</span> 批量删除 (<span id="selected-count">0</span>)';
+                updateSelection();
+            });
+        }
 
         // 预览媒体功能
         function previewMedia(videoId, type, cloudinaryUrl) {
