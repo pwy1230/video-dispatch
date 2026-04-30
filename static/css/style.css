@@ -298,6 +298,8 @@ a:hover {
 /* ==================== 表格样式 ==================== */
 .table-wrapper {
     overflow-x: auto;
+    max-height: 60vh;
+    overflow-y: auto;
 }
 
 .table {
