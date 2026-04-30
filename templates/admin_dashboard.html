@@ -159,6 +159,9 @@
                                     </td>
                                     <td>
                                         {% if not video.is_assigned %}
+                                            <button class="btn btn-info btn-sm" onclick="previewMedia({{ video.id }}, '{{ video.type }}', '{{ video.cloudinary_url }}')">
+                                                预览
+                                            </button>
                                             {% if video.type == 'image_group' %}
                                             <a href="/admin/delete_image_group/{{ video.id }}" 
                                                class="btn btn-danger btn-sm btn-delete"
@@ -262,6 +265,119 @@
         </div>
     </div>
 
+    <!-- 视频预览模态框 -->
+    <div class="modal-overlay" id="video-preview-modal">
+        <div class="modal modal-large">
+            <div class="modal-header">
+                <h3 class="modal-title">🎬 视频预览</h3>
+                <button class="modal-close" onclick="closeModal('video-preview-modal')">×</button>
+            </div>
+            <div class="modal-body">
+                <video id="preview-video-player" controls playsinline style="width: 100%; border-radius: 8px; background: #000;">
+                    您的浏览器不支持视频播放
+                </video>
+            </div>
+        </div>
+    </div>
+
+    <!-- 图片组预览模态框 -->
+    <div class="modal-overlay" id="image-group-preview-modal">
+        <div class="modal modal-large">
+            <div class="modal-header">
+                <h3 class="modal-title">🖼️ 图片组预览</h3>
+                <button class="modal-close" onclick="closeModal('image-group-preview-modal')">×</button>
+            </div>
+            <div class="modal-body">
+                <div id="image-group-preview-content" class="image-preview-grid">
+                    <!-- 图片缩略图将动态加载 -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 图片放大查看模态框 -->
+    <div class="modal-overlay" id="image-lightbox-modal" onclick="closeModal('image-lightbox-modal')">
+        <div class="lightbox-content" onclick="event.stopPropagation()">
+            <button class="modal-close lightbox-close" onclick="closeModal('image-lightbox-modal')">×</button>
+            <img id="lightbox-image" src="" alt="预览图片">
+        </div>
+    </div>
+
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script>
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            initModals();
+        });
+
+        // 预览媒体功能
+        function previewMedia(videoId, type, cloudinaryUrl) {
+            if (type === 'image_group') {
+                // 加载图片组
+                loadImageGroupPreview(videoId);
+            } else {
+                // 加载视频
+                loadVideoPreview(cloudinaryUrl);
+            }
+        }
+
+        // 加载视频预览
+        function loadVideoPreview(cloudinaryUrl) {
+            const videoPlayer = document.getElementById('preview-video-player');
+            videoPlayer.src = cloudinaryUrl;
+            openModal('video-preview-modal');
+        }
+
+        // 加载图片组预览
+        function loadImageGroupPreview(videoId) {
+            fetch(`/api/image-group/${videoId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        renderImageGroupPreview(data.images);
+                        openModal('image-group-preview-modal');
+                    } else {
+                        alert('加载图片失败: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('加载图片失败，请重试');
+                });
+        }
+
+        // 渲染图片组预览
+        function renderImageGroupPreview(images) {
+            const container = document.getElementById('image-group-preview-content');
+            container.innerHTML = images.map(img => `
+                <div class="image-preview-item" onclick="openLightbox('${img.cloudinary_url}')">
+                    <img src="${img.cloudinary_url}" alt="${img.original_filename}">
+                    <div class="image-preview-overlay">
+                        <span class="zoom-icon">🔍</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // 打开图片灯箱
+        function openLightbox(imageUrl) {
+            document.getElementById('lightbox-image').src = imageUrl;
+            openModal('image-lightbox-modal');
+        }
+
+        // 重写 closeModal 函数以支持视频停止播放
+        const originalCloseModal = closeModal;
+        closeModal = function(modalId) {
+            originalCloseModal(modalId);
+            // 如果关闭视频模态框，停止视频播放
+            if (modalId === 'video-preview-modal') {
+                const videoPlayer = document.getElementById('preview-video-player');
+                if (videoPlayer) {
+                    videoPlayer.pause();
+                    videoPlayer.src = '';
+                }
+            }
+        };
+    </script>
 </body>
 </html>
