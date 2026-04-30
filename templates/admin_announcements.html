@@ -667,6 +667,13 @@
         document.getElementById('announcement-form').addEventListener('submit', async function(e) {
             e.preventDefault();
             
+            // 等待图片上传完成
+            const imageInput = document.getElementById('announcement-image-input');
+            if (imageInput.files.length > 0 && !document.getElementById('announcement-image-url').value) {
+                alert('图片正在上传，请稍候...');
+                return;
+            }
+            
             const id = document.getElementById('announcement-id').value;
             const title = document.getElementById('announcement-title').value.trim();
             const content = document.getElementById('announcement-content').value.trim();
