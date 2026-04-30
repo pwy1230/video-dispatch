@@ -669,7 +669,7 @@
             
             // 等待图片上传完成
             const imageUrl = document.getElementById('announcement-image-url').value;
-            const imageInput = document.getElementById('announcement-image-input');
+            const imageInput = document.getElementById('image-input');
             if (imageInput && imageInput.files && imageInput.files.length > 0 && !imageUrl) {
                 alert('图片正在上传，请稍候...');
                 return;
@@ -678,7 +678,6 @@
             const id = document.getElementById('announcement-id').value;
             const title = document.getElementById('announcement-title').value.trim();
             const content = document.getElementById('announcement-content').value.trim();
-            const imageUrl = document.getElementById('announcement-image-url').value;
             const imageCloudinaryId = document.getElementById('announcement-image-cloudinary-id').value;
             const isActive = document.getElementById('announcement-active').checked ? 1 : 0;
             
