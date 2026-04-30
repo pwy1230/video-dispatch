@@ -242,18 +242,32 @@
         </main>
     </div>
 
-    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <!-- 所有JS内联在页面中，不依赖外部main.js -->
     <script>
-        const videoInput = document.getElementById('video-input');
-        const uploadZone = document.getElementById('upload-zone');
-        const selectedFilesDiv = document.getElementById('selected-files');
-        const fileList = document.getElementById('file-list');
-        const startUploadBtn = document.getElementById('start-upload-btn');
-        const uploadProgressArea = document.getElementById('upload-progress-area');
-        const progressText = document.getElementById('progress-text');
-        const progressPercent = document.getElementById('progress-percent');
-        const progressBar = document.getElementById('progress-bar');
-        const uploadResult = document.getElementById('upload-result');
+        // 页面加载完成后执行
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('[DEBUG] upload.html JS 开始执行');
+            
+            const videoInput = document.getElementById('video-input');
+            const uploadZone = document.getElementById('upload-zone');
+            const selectedFilesDiv = document.getElementById('selected-files');
+            const fileList = document.getElementById('file-list');
+            const startUploadBtn = document.getElementById('start-upload-btn');
+            const uploadProgressArea = document.getElementById('upload-progress-area');
+            const progressText = document.getElementById('progress-text');
+            const progressPercent = document.getElementById('progress-percent');
+            const progressBar = document.getElementById('progress-bar');
+            const uploadResult = document.getElementById('upload-result');
+
+            console.log('[DEBUG] videoInput:', videoInput);
+            console.log('[DEBUG] uploadZone:', uploadZone);
+            console.log('[DEBUG] selectedFilesDiv:', selectedFilesDiv);
+            console.log('[DEBUG] startUploadBtn:', startUploadBtn);
+
+            if (!videoInput || !uploadZone || !selectedFilesDiv || !startUploadBtn) {
+                console.error('[ERROR] 必要的DOM元素未找到!');
+                return;
+            }
 
         let selectedFiles = [];
         let isUploading = false;
@@ -269,7 +283,9 @@
 
         // 文件选择处理
         videoInput.addEventListener('change', function(e) {
+            console.log('[DEBUG] 文件选择事件触发');
             const files = Array.from(e.target.files);
+            console.log('[DEBUG] 选中文件数:', files.length);
             if (files.length === 0) return;
             
             selectedFiles = files;
@@ -284,10 +300,12 @@
             
             selectedFilesDiv.style.display = 'block';
             uploadProgressArea.style.display = 'none';
+            console.log('[DEBUG] 文件列表已显示');
         });
 
         // 拖拽上传支持
         uploadZone.addEventListener('dragover', function(e) {
+            console.log('[DEBUG] 拖拽悬停');
             e.preventDefault();
             uploadZone.classList.add('dragover');
         });
@@ -298,6 +316,7 @@
         });
 
         uploadZone.addEventListener('drop', function(e) {
+            console.log('[DEBUG] 拖拽放下事件触发');
             e.preventDefault();
             uploadZone.classList.remove('dragover');
             
@@ -306,6 +325,7 @@
                 /\.(mp4|avi|mov|mkv|webm|flv|wmv)$/i.test(f.name)
             );
             
+            console.log('[DEBUG] 拖拽的文件数:', files.length);
             if (files.length === 0) {
                 alert('请选择视频文件');
                 return;
@@ -428,7 +448,11 @@
 
         // 开始上传 - 使用前端直传 Cloudinary
         startUploadBtn.addEventListener('click', async function() {
-            if (selectedFiles.length === 0 || isUploading) return;
+            console.log('[DEBUG] 开始上传按钮点击');
+            if (selectedFiles.length === 0 || isUploading) {
+                console.log('[DEBUG] 上传被跳过: selectedFiles=', selectedFiles.length, 'isUploading=', isUploading);
+                return;
+            }
             
             isUploading = true;
             startUploadBtn.disabled = true;
@@ -541,7 +565,12 @@
             setTimeout(() => {
                 window.location.reload();
             }, 2000);
+            
+            console.log('[DEBUG] 上传流程完成');
         });
+        
+        console.log('[DEBUG] 所有事件绑定完成，页面已准备好响应用户操作');
+        }); // 结束 DOMContentLoaded
     </script>
 </body>
 </html>
