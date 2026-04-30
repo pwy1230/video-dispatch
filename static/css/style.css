@@ -43,7 +43,7 @@ a:hover {
 
 /* ==================== 容器布局 ==================== */
 .container {
-    max-width: 1200px;
+    max-width: 1600px;
     margin: 0 auto;
     padding: 20px;
 }
@@ -298,7 +298,6 @@ a:hover {
 /* ==================== 表格样式 ==================== */
 .table-wrapper {
     overflow-x: auto;
-    max-height: 60vh;
     overflow-y: auto;
 }
 
