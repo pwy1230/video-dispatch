@@ -164,6 +164,17 @@ def init_db():
         )
     ''')
     
+    # 收款码表（员工收款码截图）
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS payment_qrcodes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            device_id TEXT NOT NULL UNIQUE,
+            cloudinary_url TEXT NOT NULL,
+            cloudinary_public_id TEXT,
+            uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    
     conn.commit()
     conn.close()
     print("✓ 数据库初始化完成")
@@ -790,6 +801,68 @@ def get_announcement_stats():
         'active_count': active_count,
         'total_count': total_count
     }
+
+
+# ============== 收款码管理函数 ==============
+
+def save_payment_qrcode(device_id, cloudinary_url, cloudinary_public_id):
+    """保存或更新收款码（同设备只保存最新的）"""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    # 检查是否已存在
+    cursor.execute('SELECT id FROM payment_qrcodes WHERE device_id = ?', (device_id,))
+    existing = cursor.fetchone()
+    
+    if existing:
+        # 更新
+        cursor.execute('''
+            UPDATE payment_qrcodes 
+            SET cloudinary_url = ?, cloudinary_public_id = ?, uploaded_at = CURRENT_TIMESTAMP
+            WHERE device_id = ?
+        ''', (cloudinary_url, cloudinary_public_id, device_id))
+    else:
+        # 插入
+        cursor.execute('''
+            INSERT INTO payment_qrcodes (device_id, cloudinary_url, cloudinary_public_id)
+            VALUES (?, ?, ?)
+        ''', (device_id, cloudinary_url, cloudinary_public_id))
+    
+    conn.commit()
+    conn.close()
+    return True
+
+
+def get_payment_qrcode(device_id):
+    """获取某设备的收款码"""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+        SELECT id, device_id, cloudinary_url, cloudinary_public_id, uploaded_at
+        FROM payment_qrcodes
+        WHERE device_id = ?
+    ''', (device_id,))
+    
+    qrcode = cursor.fetchone()
+    conn.close()
+    return dict_from_row(qrcode) if qrcode else None
+
+
+def get_all_payment_qrcodes():
+    """获取所有收款码（管理员用）"""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+        SELECT id, device_id, cloudinary_url, cloudinary_public_id, uploaded_at
+        FROM payment_qrcodes
+        ORDER BY uploaded_at DESC
+    ''')
+    
+    qrcodes = [dict_from_row(row) for row in cursor.fetchall()]
+    conn.close()
+    return qrcodes
 
 
 if __name__ == '__main__':

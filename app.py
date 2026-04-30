@@ -28,7 +28,8 @@ from models import (
     get_screenshots_by_device, get_screenshot_stats,
     create_announcement, get_active_announcements, get_all_announcements,
     get_announcement_by_id, update_announcement, delete_announcement,
-    toggle_announcement, get_announcement_stats
+    toggle_announcement, get_announcement_stats,
+    save_payment_qrcode, get_payment_qrcode, get_all_payment_qrcodes
 )
 
 # ============== Flask 应用配置 ==============
@@ -400,19 +401,108 @@ def api_get_device_screenshots():
     })
 
 
+# ============== 收款码 API ==============
+
+@app.route('/api/payment-qrcode-signature')
+def api_payment_qrcode_signature():
+    """
+    API: 获取收款码上传的 Cloudinary 签名
+    前端直传到 Cloudinary 时需要此签名进行身份验证
+    """
+    if not USE_CLOUDINARY:
+        return jsonify({'success': False, 'message': 'Cloudinary 未配置'}), 400
+    
+    import hashlib
+    import time
+    
+    timestamp = str(int(time.time()))
+    folder = 'payment_qrcode'
+    resource_type = 'image'
+    signature_string = f'folder={folder}&timestamp={timestamp}{cloudinary_config["api_secret"]}'
+    
+    signature = hashlib.sha1(signature_string.encode()).hexdigest()
+    
+    return jsonify({
+        'success': True,
+        'cloud_name': cloudinary_config['cloud_name'],
+        'api_key': cloudinary_config['api_key'],
+        'timestamp': timestamp,
+        'signature': signature,
+        'folder': folder,
+        'resource_type': resource_type
+    })
+
+
+@app.route('/api/save-payment-qrcode', methods=['POST'])
+def api_save_payment_qrcode():
+    """
+    API: 保存收款码
+    收款码直传 Cloudinary 成功后调用此接口，将收款码信息存入数据库
+    """
+    data = request.get_json()
+    
+    if not data:
+        return jsonify({'success': False, 'message': '缺少参数'}), 400
+    
+    device_id = data.get('device_id')
+    cloudinary_url = data.get('cloudinary_url')
+    cloudinary_public_id = data.get('cloudinary_public_id', '')
+    
+    if not device_id:
+        return jsonify({'success': False, 'message': '缺少设备标识'}), 400
+    
+    if not cloudinary_url:
+        return jsonify({'success': False, 'message': '缺少收款码URL'}), 400
+    
+    try:
+        save_payment_qrcode(device_id, cloudinary_url, cloudinary_public_id)
+        print(f"✓ 收款码已保存: device={device_id}")
+        
+        return jsonify({
+            'success': True,
+            'message': '收款码已保存'
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'保存失败: {str(e)}'}), 500
+
+
+@app.route('/api/payment-qrcode')
+def api_get_payment_qrcode():
+    """API: 获取当前设备的收款码"""
+    device_id = request.args.get('device_id')
+    
+    if not device_id:
+        return jsonify({'success': False, 'message': '缺少设备标识'}), 400
+    
+    qrcode = get_payment_qrcode(device_id)
+    
+    if qrcode:
+        qrcode['uploaded_fmt'] = format_datetime(qrcode.get('uploaded_at'))
+    
+    return jsonify({
+        'success': True,
+        'qrcode': qrcode
+    })
+
+
 @app.route('/admin/screenshots')
 @login_required(role='admin')
 def admin_screenshots():
     """管理员查看所有截图页面"""
     screenshots = get_all_screenshots()
     screenshot_stats = get_screenshot_stats()
+    payment_qrcodes = get_all_payment_qrcodes()
     
     for s in screenshots:
         s['uploaded_fmt'] = format_datetime(s.get('uploaded_at'))
     
+    for q in payment_qrcodes:
+        q['uploaded_fmt'] = format_datetime(q.get('uploaded_at'))
+    
     return render_template('admin_screenshots.html',
                            screenshots=screenshots,
-                           stats=screenshot_stats)
+                           stats=screenshot_stats,
+                           payment_qrcodes=payment_qrcodes)
 
 
 @app.route('/admin/video-pool')

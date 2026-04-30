@@ -276,6 +276,63 @@
                 grid-template-columns: repeat(2, 1fr);
             }
         }
+        
+        /* 收款码样式 */
+        .group-qrcode {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            border-radius: 10px;
+            margin-bottom: 16px;
+        }
+        
+        .group-qrcode-label {
+            font-size: 0.9rem;
+            color: var(--success);
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        
+        .group-qrcode-thumb {
+            width: 60px;
+            height: 60px;
+            border-radius: 8px;
+            overflow: hidden;
+            cursor: pointer;
+            border: 2px solid rgba(16, 185, 129, 0.5);
+            transition: all 0.2s;
+        }
+        
+        .group-qrcode-thumb:hover {
+            transform: scale(1.1);
+            border-color: var(--success);
+        }
+        
+        .group-qrcode-thumb img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .group-qrcode-time {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+        
+        .group-no-qrcode {
+            padding: 10px 16px;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 8px;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
     </style>
 </head>
 <body>
@@ -329,6 +386,11 @@
                     <div class="stat-value">{{ stats.device_count }}</div>
                     <div class="stat-label">参与设备数</div>
                 </div>
+                <div class="stat-card">
+                    <div class="stat-icon">💳</div>
+                    <div class="stat-value">{{ payment_qrcodes|length }}</div>
+                    <div class="stat-label">收款码数量</div>
+                </div>
             </div>
             
             <!-- 截图列表 -->
@@ -343,6 +405,14 @@
                 {% endfor %}
                 
                 {% for device_id, items in grouped.items() %}
+                {# 获取该设备对应的收款码 #}
+                {% set device_qrcode = namespace(value=None) %}
+                {% for q in payment_qrcodes %}
+                    {% if q.device_id == device_id %}
+                        {% set device_qrcode.value = q %}
+                    {% endif %}
+                {% endfor %}
+                
                 <div class="screenshot-group">
                     <div class="group-header">
                         <span class="group-video-icon">📱</span>
@@ -352,6 +422,24 @@
                         </div>
                         <span class="group-count">{{ items|length }} 张截图</span>
                     </div>
+                    
+                    {# 收款码显示区域 #}
+                    {% if device_qrcode.value %}
+                    <div class="group-qrcode">
+                        <span class="group-qrcode-label">💳 收款码</span>
+                        <div class="group-qrcode-thumb" onclick="openImageViewer('{{ device_qrcode.value.cloudinary_url }}')">
+                            <img src="{{ device_qrcode.value.cloudinary_url }}" alt="收款码">
+                        </div>
+                        <div class="group-qrcode-time">
+                            上传时间: {{ device_qrcode.value.uploaded_at[:16] if device_qrcode.value.uploaded_at else '未知' }}
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="group-no-qrcode">
+                        <span>⚠️</span>
+                        <span>该设备尚未上传收款码</span>
+                    </div>
+                    {% endif %}
                     
                     <div class="screenshot-grid">
                         {% for item in items %}
