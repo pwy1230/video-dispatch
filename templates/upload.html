@@ -303,6 +303,18 @@
             console.log('[DEBUG] 文件列表已显示');
         });
 
+        // 点击上传区域触发文件选择
+        uploadZone.addEventListener('click', function(e) {
+            console.log('[DEBUG] 上传区域被点击');
+            e.preventDefault();
+            videoInput.click();
+        });
+
+        // 阻止文件选择框的点击冒泡
+        videoInput.addEventListener('click', function(e) {
+            e.stopPropagation();
+        });
+
         // 拖拽上传支持
         uploadZone.addEventListener('dragover', function(e) {
             console.log('[DEBUG] 拖拽悬停');
