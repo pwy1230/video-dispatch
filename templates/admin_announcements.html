@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>公告管理 - 视频派发系统</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        /* 页面特定样式 */
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+        
+        .page-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+        
+        .announcement-list {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        
+        .announcement-item {
+            background: var(--bg-card);
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid var(--border);
+            transition: all 0.2s;
+        }
+        
+        .announcement-item:hover {
+            border-color: var(--primary);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+        
+        .announcement-item.inactive {
+            opacity: 0.6;
+        }
+        
+        .announcement-item-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 16px;
+            margin-bottom: 12px;
+        }
+        
+        .announcement-item-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            flex: 1;
+        }
+        
+        .announcement-item-status {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+        
+        .announcement-item-status.active {
+            background: rgba(16, 185, 129, 0.2);
+            color: var(--success);
+        }
+        
+        .announcement-item-status.inactive {
+            background: rgba(107, 114, 128, 0.2);
+            color: var(--secondary);
+        }
+        
+        .announcement-item-content {
+            font-size: 0.95rem;
+            color: var(--text-secondary);
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-break: break-word;
+            margin-bottom: 12px;
+            max-height: 100px;
+            overflow: hidden;
+        }
+        
+        .announcement-item-content.expanded {
+            max-height: none;
+        }
+        
+        .announcement-item-image {
+            max-width: 200px;
+            max-height: 120px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            cursor: pointer;
+            object-fit: cover;
+        }
+        
+        .announcement-item-meta {
+            display: flex;
+            gap: 20px;
+            font-size: 0.85rem;
+            color: var(--secondary);
+            margin-bottom: 16px;
+        }
+        
+        .announcement-item-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        
+        .btn-toggle {
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+        }
+        
+        .btn-toggle:hover {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: white;
+        }
+        
+        .btn-toggle.active {
+            background: rgba(16, 185, 129, 0.2);
+            border-color: var(--success);
+            color: var(--success);
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-secondary);
+        }
+        
+        .empty-state-icon {
+            font-size: 4rem;
+            margin-bottom: 16px;
+        }
+        
+        /* 模态框样式 */
+        .form-textarea-modal {
+            width: 100%;
+            padding: 12px 16px;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            background: var(--bg-input);
+            color: var(--text-primary);
+            font-size: 1rem;
+            margin-bottom: 16px;
+            resize: vertical;
+            min-height: 100px;
+            font-family: inherit;
+        }
+        
+        .form-textarea-modal:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+        }
+        
+        .image-upload-area {
+            border: 2px dashed var(--border);
+            border-radius: 12px;
+            padding: 30px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-bottom: 16px;
+            background: var(--bg-input);
+        }
+        
+        .image-upload-area:hover {
+            border-color: var(--primary);
+            background: rgba(59, 130, 246, 0.1);
+        }
+        
+        .image-upload-area.has-image {
+            border-style: solid;
+            border-color: var(--success);
+            padding: 16px;
+        }
+        
+        .image-upload-icon {
+            font-size: 2.5rem;
+            margin-bottom: 12px;
+            color: var(--text-secondary);
+        }
+        
+        .image-upload-text {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+        
+        .image-preview-container {
+            position: relative;
+            display: inline-block;
+        }
+        
+        .image-preview-container img {
+            max-width: 100%;
+            max-height: 200px;
+            border-radius: 8px;
+        }
+        
+        .image-remove-btn {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            border: none;
+            background: var(--danger);
+            color: white;
+            font-size: 0.9rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .image-remove-btn:hover {
+            background: #dc2626;
+        }
+        
+        .toggle-switch {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        
+        .toggle-switch input[type="checkbox"] {
+            display: none;
+        }
+        
+        .toggle-switch-label {
+            position: relative;
+            width: 48px;
+            height: 26px;
+            background: var(--bg-input);
+            border-radius: 13px;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: 1px solid var(--border);
+        }
+        
+        .toggle-switch-label::after {
+            content: '';
+            position: absolute;
+            top: 3px;
+            left: 3px;
+            width: 18px;
+            height: 18px;
+            background: white;
+            border-radius: 50%;
+            transition: all 0.3s;
+        }
+        
+        .toggle-switch input[type="checkbox"]:checked + .toggle-switch-label {
+            background: var(--success);
+            border-color: var(--success);
+        }
+        
+        .toggle-switch input[type="checkbox"]:checked + .toggle-switch-label::after {
+            left: 25px;
+        }
+        
+        .toggle-switch-text {
+            font-size: 0.95rem;
+            color: var(--text-secondary);
+        }
+        
+        /* 图片查看器 */
+        .image-viewer {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.95);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .image-viewer.active {
+            display: flex;
+        }
+        
+        .image-viewer img {
+            max-width: 90%;
+            max-height: 90%;
+            object-fit: contain;
+        }
+        
+        .image-viewer-close {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            border: none;
+            background: var(--bg-card);
+            color: var(--text-primary);
+            font-size: 1.5rem;
+            cursor: pointer;
+        }
+        
+        .expand-content-btn {
+            color: var(--primary);
+            cursor: pointer;
+            font-size: 0.85rem;
+            margin-top: 4px;
+        }
+        
+        .expand-content-btn:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="page-wrapper">
+        <!-- 导航栏 -->
+        <nav class="navbar">
+            <div class="navbar-content">
+                <a href="{{ url_for('admin_dashboard') }}" class="navbar-brand">
+                    <span class="icon">🎬</span>
+                    视频派发系统
+                </a>
+                
+                <div class="navbar-nav">
+                    <a href="{{ url_for('admin_dashboard') }}" class="nav-link">
+                        <span>📊</span> 返回首页
+                    </a>
+                    <div class="user-info">
+                        <span>{{ session.username }}</span>
+                        <span class="user-role admin">管理员</span>
+                    </div>
+                    <a href="{{ url_for('logout') }}" class="nav-link">
+                        <span>🚪</span>
+                        退出
+                    </a>
+                </div>
+            </div>
+        </nav>
+
+        <!-- 主内容 -->
+        <main class="container">
+            <!-- 页面标题 -->
+            <div class="page-header">
+                <h1 class="page-title">📢 公告管理</h1>
+                <button class="btn btn-primary" onclick="openAddModal()">
+                    <span>+</span> 新增公告
+                </button>
+            </div>
+
+            <!-- 统计信息 -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon">📢</div>
+                    <div class="stat-value">{{ stats.active_count }}</div>
+                    <div class="stat-label">启用中</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">📋</div>
+                    <div class="stat-value">{{ stats.total_count }}</div>
+                    <div class="stat-label">全部公告</div>
+                </div>
+            </div>
+
+            <!-- 公告列表 -->
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h2 class="card-title">公告列表</h2>
+                </div>
+                
+                <div class="card-body">
+                    {% if announcements %}
+                    <div class="announcement-list">
+                        {% for announcement in announcements %}
+                        <div class="announcement-item {% if not announcement.is_active %}inactive{% endif %}" 
+                             data-id="{{ announcement.id }}">
+                            <div class="announcement-item-header">
+                                <div class="announcement-item-title">{{ announcement.title }}</div>
+                                <span class="announcement-item-status {% if announcement.is_active %}active{% else %}inactive{% endif %}">
+                                    {{ '启用' if announcement.is_active else '停用' }}
+                                </span>
+                            </div>
+                            
+                            {% if announcement.content %}
+                            <div class="announcement-item-content" id="content-{{ announcement.id }}">
+                                {{ announcement.content }}
+                            </div>
+                            {% if announcement.content|length > 100 %}
+                            <span class="expand-content-btn" onclick="toggleContent({{ announcement.id }})">展开全部</span>
+                            {% endif %}
+                            {% endif %}
+                            
+                            {% if announcement.image_url %}
+                            <img src="{{ announcement.image_url }}" alt="公告图片" 
+                                 class="announcement-item-image"
+                                 onclick="openImageViewer(this.src)">
+                            {% endif %}
+                            
+                            <div class="announcement-item-meta">
+                                <span>📅 创建: {{ announcement.created_fmt }}</span>
+                                <span>🔄 更新: {{ announcement.updated_fmt }}</span>
+                            </div>
+                            
+                            <div class="announcement-item-actions">
+                                <button class="btn btn-sm btn-toggle {% if announcement.is_active %}active{% endif %}" 
+                                        onclick="toggleAnnouncement({{ announcement.id }})">
+                                    {{ '⏸️ 停用' if announcement.is_active else '▶️ 启用' }}
+                                </button>
+                                <button class="btn btn-sm btn-primary" onclick="openEditModal({{ announcement.id }})">
+                                    ✏️ 编辑
+                                </button>
+                                <button class="btn btn-sm btn-danger btn-delete" 
+                                        onclick="deleteAnnouncement({{ announcement.id }}, '{{ announcement.title }}')">
+                                    🗑️ 删除
+                                </button>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📢</div>
+                        <p>暂无公告，点击上方按钮添加第一条公告</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- 新增/编辑公告模态框 -->
+    <div class="modal-overlay" id="announcement-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title" id="modal-title">新增公告</h3>
+                <button class="modal-close" onclick="closeModal()">×</button>
+            </div>
+            
+            <form id="announcement-form">
+                <input type="hidden" id="announcement-id">
+                
+                <div class="form-group">
+                    <label class="form-label" for="announcement-title">公告标题 <span class="required">*</span></label>
+                    <input type="text" id="announcement-title" class="form-input" 
+                           placeholder="输入公告标题" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label" for="announcement-content">公告内容</label>
+                    <textarea id="announcement-content" class="form-textarea-modal" 
+                              placeholder="输入公告内容（支持多行）"></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">公告图片（可选）</label>
+                    <div class="image-upload-area" id="image-upload-area" onclick="document.getElementById('image-input').click()">
+                        <div class="image-upload-icon" id="upload-icon">📷</div>
+                        <div class="image-upload-text" id="upload-text">点击或拖拽上传图片</div>
+                        <div id="image-preview-container"></div>
+                    </div>
+                    <input type="file" id="image-input" accept="image/*" style="display: none;"
+                           onchange="handleImageSelect(this)">
+                    <input type="hidden" id="announcement-image-url">
+                    <input type="hidden" id="announcement-image-cloudinary-id">
+                </div>
+                
+                <div class="toggle-switch">
+                    <input type="checkbox" id="announcement-active" checked>
+                    <label class="toggle-switch-label" for="announcement-active"></label>
+                    <span class="toggle-switch-text">启用此公告</span>
+                </div>
+                
+                <div class="flex flex-gap mt-2">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal()">取消</button>
+                    <button type="submit" class="btn btn-primary" id="submit-btn">确认添加</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 图片查看器 -->
+    <div class="image-viewer" id="image-viewer">
+        <button class="image-viewer-close" onclick="closeImageViewer()">×</button>
+        <img id="viewer-image" src="" alt="查看图片">
+    </div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script>
+        // 获取 Cloudinary 上传配置
+        async function getCloudinaryConfig() {
+            try {
+                const response = await fetch('/api/announcement-signature');
+                const data = await response.json();
+                return data;
+            } catch (error) {
+                console.error('获取上传配置失败:', error);
+                return null;
+            }
+        }
+        
+        // 打开新增模态框
+        function openAddModal() {
+            document.getElementById('modal-title').textContent = '新增公告';
+            document.getElementById('submit-btn').textContent = '确认添加';
+            document.getElementById('announcement-form').reset();
+            document.getElementById('announcement-id').value = '';
+            clearImagePreview();
+            document.getElementById('announcement-active').checked = true;
+            document.getElementById('announcement-modal').classList.add('active');
+        }
+        
+        // 打开编辑模态框
+        async function openEditModal(id) {
+            try {
+                const response = await fetch('/api/announcements/' + id);
+                const data = await response.json();
+                
+                if (data.success) {
+                    const announcement = data.announcement;
+                    document.getElementById('modal-title').textContent = '编辑公告';
+                    document.getElementById('submit-btn').textContent = '保存修改';
+                    document.getElementById('announcement-id').value = announcement.id;
+                    document.getElementById('announcement-title').value = announcement.title;
+                    document.getElementById('announcement-content').value = announcement.content || '';
+                    document.getElementById('announcement-active').checked = announcement.is_active == 1;
+                    
+                    if (announcement.image_url) {
+                        document.getElementById('announcement-image-url').value = announcement.image_url;
+                        document.getElementById('announcement-image-cloudinary-id').value = announcement.image_cloudinary_id || '';
+                        showImagePreview(announcement.image_url);
+                    } else {
+                        clearImagePreview();
+                    }
+                    
+                    document.getElementById('announcement-modal').classList.add('active');
+                }
+            } catch (error) {
+                alert('获取公告信息失败');
+                console.error(error);
+            }
+        }
+        
+        // 获取公告详情 API
+        async function fetchAnnouncement(id) {
+            try {
+                const response = await fetch('/api/announcements/' + id);
+                return await response.json();
+            } catch (error) {
+                console.error('获取公告信息失败:', error);
+                return { success: false };
+            }
+        }
+        
+        // 关闭模态框
+        function closeModal() {
+            document.getElementById('announcement-modal').classList.remove('active');
+        }
+        
+        // 显示图片预览
+        function showImagePreview(url) {
+            const container = document.getElementById('image-preview-container');
+            const uploadArea = document.getElementById('image-upload-area');
+            const uploadIcon = document.getElementById('upload-icon');
+            const uploadText = document.getElementById('upload-text');
+            
+            uploadArea.classList.add('has-image');
+            uploadIcon.style.display = 'none';
+            uploadText.style.display = 'none';
+            
+            container.innerHTML = `
+                <div class="image-preview-container">
+                    <img src="${url}" alt="预览">
+                    <button type="button" class="image-remove-btn" onclick="removeImage(event)">×</button>
+                </div>
+            `;
+        }
+        
+        // 清除图片预览
+        function clearImagePreview() {
+            const container = document.getElementById('image-preview-container');
+            const uploadArea = document.getElementById('image-upload-area');
+            const uploadIcon = document.getElementById('upload-icon');
+            const uploadText = document.getElementById('upload-text');
+            
+            uploadArea.classList.remove('has-image');
+            uploadIcon.style.display = '';
+            uploadText.style.display = '';
+            container.innerHTML = '';
+            
+            document.getElementById('announcement-image-url').value = '';
+            document.getElementById('announcement-image-cloudinary-id').value = '';
+        }
+        
+        // 移除图片
+        function removeImage(event) {
+            event.stopPropagation();
+            clearImagePreview();
+        }
+        
+        // 处理图片选择
+        async function handleImageSelect(input) {
+            if (!input.files || !input.files[0]) return;
+            
+            const file = input.files[0];
+            if (!file.type.startsWith('image/')) {
+                alert('请选择图片文件');
+                return;
+            }
+            
+            const config = await getCloudinaryConfig();
+            if (!config || !config.success) {
+                alert('无法获取上传配置，请检查网络');
+                return;
+            }
+            
+            // 显示本地预览
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                showImagePreview(e.target.result);
+            };
+            reader.readAsDataURL(file);
+            
+            // 上传到 Cloudinary
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('signature', config.signature);
+            formData.append('timestamp', config.timestamp);
+            formData.append('api_key', config.api_key);
+            formData.append('folder', config.folder);
+            
+            try {
+                const uploadResponse = await fetch(
+                    `https://api.cloudinary.com/v1_1/${config.cloud_name}/image/upload`,
+                    {
+                        method: 'POST',
+                        body: formData
+                    }
+                );
+                
+                const uploadData = await uploadResponse.json();
+                
+                if (uploadData.secure_url) {
+                    document.getElementById('announcement-image-url').value = uploadData.secure_url;
+                    document.getElementById('announcement-image-cloudinary-id').value = uploadData.public_id;
+                }
+            } catch (error) {
+                console.error('图片上传失败:', error);
+                alert('图片上传失败');
+            }
+        }
+        
+        // 提交表单
+        document.getElementById('announcement-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const id = document.getElementById('announcement-id').value;
+            const title = document.getElementById('announcement-title').value.trim();
+            const content = document.getElementById('announcement-content').value.trim();
+            const imageUrl = document.getElementById('announcement-image-url').value;
+            const imageCloudinaryId = document.getElementById('announcement-image-cloudinary-id').value;
+            const isActive = document.getElementById('announcement-active').checked ? 1 : 0;
+            
+            if (!title) {
+                alert('请输入公告标题');
+                return;
+            }
+            
+            const submitBtn = document.getElementById('submit-btn');
+            submitBtn.disabled = true;
+            submitBtn.textContent = '提交中...';
+            
+            try {
+                const url = id ? '/api/update-announcement' : '/api/save-announcement';
+                const method = 'POST';
+                
+                const response = await fetch(url, {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        id: id || undefined,
+                        title: title,
+                        content: content,
+                        image_url: imageUrl || null,
+                        image_cloudinary_id: imageCloudinaryId || null,
+                        is_active: isActive
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert(data.message);
+                    location.reload();
+                } else {
+                    alert(data.message || '操作失败');
+                }
+            } catch (error) {
+                console.error('提交失败:', error);
+                alert('提交失败，请重试');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = id ? '保存修改' : '确认添加';
+            }
+        });
+        
+        // 切换公告状态
+        async function toggleAnnouncement(id) {
+            if (!confirm('确定要切换此公告的状态吗？')) return;
+            
+            try {
+                const response = await fetch(`/api/toggle-announcement/${id}`, {
+                    method: 'POST'
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    location.reload();
+                } else {
+                    alert(data.message || '操作失败');
+                }
+            } catch (error) {
+                console.error('切换状态失败:', error);
+                alert('操作失败，请重试');
+            }
+        }
+        
+        // 删除公告
+        async function deleteAnnouncement(id, title) {
+            if (!confirm(`确定要删除公告"${title}"吗？此操作不可恢复。`)) return;
+            
+            try {
+                const response = await fetch(`/api/delete-announcement/${id}`, {
+                    method: 'POST'
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert('公告已删除');
+                    location.reload();
+                } else {
+                    alert(data.message || '删除失败');
+                }
+            } catch (error) {
+                console.error('删除失败:', error);
+                alert('删除失败，请重试');
+            }
+        }
+        
+        // 展开/收起内容
+        function toggleContent(id) {
+            const contentEl = document.getElementById('content-' + id);
+            const btnEl = contentEl.nextElementSibling;
+            
+            if (contentEl.classList.contains('expanded')) {
+                contentEl.classList.remove('expanded');
+                btnEl.textContent = '展开全部';
+            } else {
+                contentEl.classList.add('expanded');
+                btnEl.textContent = '收起';
+            }
+        }
+        
+        // 图片查看器
+        function openImageViewer(src) {
+            document.getElementById('viewer-image').src = src;
+            document.getElementById('image-viewer').classList.add('active');
+        }
+        
+        function closeImageViewer() {
+            document.getElementById('image-viewer').classList.remove('active');
+        }
+        
+        // 点击遮罩关闭
+        document.getElementById('image-viewer').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeImageViewer();
+            }
+        });
+        
+        // ESC 关闭模态框
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeModal();
+                closeImageViewer();
+            }
+        });
+        
+        // 初始化模态框
+        function initModals() {
+            const modal = document.getElementById('announcement-modal');
+            
+            // 点击遮罩关闭
+            modal.addEventListener('click', function(e) {
+                if (e.target === modal) {
+                    closeModal();
+                }
+            });
+        }
+        
+        document.addEventListener('DOMContentLoaded', initModals);
+    </script>
+</body>
+</html>

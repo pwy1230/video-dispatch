@@ -666,6 +666,71 @@
             color: var(--text-primary);
         }
         
+        /* 公告区域样式 */
+        .announcement-area {
+            width: 100%;
+            margin-bottom: 20px;
+        }
+        
+        .announcement-card {
+            background: linear-gradient(135deg, rgba(251, 191, 36, 0.15) 0%, rgba(245, 158, 11, 0.1) 100%);
+            border: 2px solid rgba(251, 191, 36, 0.4);
+            border-radius: 16px;
+            padding: 16px 20px;
+            margin-bottom: 12px;
+            animation: announcementPulse 3s ease-in-out infinite;
+        }
+        
+        @keyframes announcementPulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.2); }
+            50% { box-shadow: 0 0 20px 5px rgba(251, 191, 36, 0.15); }
+        }
+        
+        .announcement-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+        
+        .announcement-icon {
+            font-size: 1.2rem;
+        }
+        
+        .announcement-title {
+            font-size: 1.05rem;
+            font-weight: 600;
+            color: #fbbf24;
+        }
+        
+        .announcement-content {
+            font-size: 0.95rem;
+            color: var(--text-secondary);
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        
+        .announcement-image {
+            max-width: 100%;
+            max-height: 200px;
+            border-radius: 10px;
+            margin-top: 12px;
+            cursor: pointer;
+        }
+        
+        .announcement-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 10px;
+            background: rgba(251, 191, 36, 0.2);
+            border-radius: 20px;
+            font-size: 0.75rem;
+            color: #fbbf24;
+            margin-left: auto;
+        }
+        
         /* 移动端优化 */
         @media (max-width: 480px) {
             .home-title {
@@ -711,6 +776,28 @@
             <div class="home-logo">🎬</div>
             <h1 class="home-title">视频派发系统</h1>
             <p class="home-subtitle">点击按钮，随机下载一个视频</p>
+            
+            <!-- 公告区域 -->
+            {% if announcements %}
+            <div class="announcement-area">
+                {% for announcement in announcements %}
+                <div class="announcement-card">
+                    <div class="announcement-header">
+                        <span class="announcement-icon">📢</span>
+                        <span class="announcement-title">{{ announcement.title }}</span>
+                        <span class="announcement-badge">公告</span>
+                    </div>
+                    {% if announcement.content %}
+                    <div class="announcement-content">{{ announcement.content }}</div>
+                    {% endif %}
+                    {% if announcement.image_url %}
+                    <img src="{{ announcement.image_url }}" alt="公告图片" class="announcement-image" 
+                         onclick="openImageViewer(this.src)">
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
             
             <!-- 下载按钮 -->
             {% if can_download and stats.available_total > 0 %}

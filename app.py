@@ -25,7 +25,10 @@ from models import (
     get_download_records, check_daily_limit,
     add_image_group, get_image_group_items, delete_image_group,
     add_screenshot, get_screenshots_by_video, get_all_screenshots, 
-    get_screenshots_by_device, get_screenshot_stats
+    get_screenshots_by_device, get_screenshot_stats,
+    create_announcement, get_active_announcements, get_all_announcements,
+    get_announcement_by_id, update_announcement, delete_announcement,
+    toggle_announcement, get_announcement_stats
 )
 
 # ============== Flask 应用配置 ==============
@@ -492,6 +495,7 @@ def download_page():
     stats = get_stats()
     records = get_download_records(client_identifier=client_id)
     can_download = not check_daily_limit(client_id)
+    announcements = get_active_announcements()
     
     for r in records:
         r['downloaded_fmt'] = format_datetime(r['downloaded_at'])
@@ -500,7 +504,8 @@ def download_page():
                            client_id=client_id,
                            stats=stats, 
                            records=records,
-                           can_download=can_download)
+                           can_download=can_download,
+                           announcements=announcements)
 
 
 @app.route('/download/action')
@@ -616,6 +621,7 @@ def api_download_status():
 def admin_dashboard():
     """管理员控制台"""
     stats = get_stats()
+    announcement_stats = get_announcement_stats()
     videos = get_all_videos()
     users = get_all_users()
     records = get_download_records(limit=50)
@@ -629,6 +635,7 @@ def admin_dashboard():
     
     return render_template('admin_dashboard.html', 
                            stats=stats, 
+                           announcement_stats=announcement_stats,
                            videos=videos, 
                            users=users,
                            records=records)
@@ -663,6 +670,203 @@ def admin_delete_user(user_id):
     else:
         flash('删除失败', 'error')
     return redirect(url_for('admin_dashboard'))
+
+
+# ============== 公告管理路由 ==============
+
+@app.route('/admin/announcements')
+@login_required(role='admin')
+def admin_announcements():
+    """公告管理页面"""
+    announcements = get_all_announcements()
+    announcement_stats = get_announcement_stats()
+    
+    for a in announcements:
+        a['created_fmt'] = format_datetime(a.get('created_at'))
+        a['updated_fmt'] = format_datetime(a.get('updated_at'))
+    
+    return render_template('admin_announcements.html',
+                           announcements=announcements,
+                           stats=announcement_stats)
+
+
+@app.route('/api/announcements/<int:announcement_id>')
+@login_required(role='admin')
+def api_get_announcement(announcement_id):
+    """API: 获取单个公告详情"""
+    announcement = get_announcement_by_id(announcement_id)
+    
+    if not announcement:
+        return jsonify({'success': False, 'message': '公告不存在'}), 404
+    
+    return jsonify({
+        'success': True,
+        'announcement': announcement
+    })
+
+
+@app.route('/api/announcement-signature')
+@login_required(role='admin')
+def api_announcement_signature():
+    """
+    API: 获取公告图片上传的 Cloudinary 签名
+    """
+    if not USE_CLOUDINARY:
+        return jsonify({'success': False, 'message': 'Cloudinary 未配置'}), 400
+    
+    import hashlib
+    import time
+    
+    timestamp = str(int(time.time()))
+    folder = 'announcement_dispatch'
+    resource_type = 'image'
+    signature_string = f'folder={folder}&timestamp={timestamp}{cloudinary_config["api_secret"]}'
+    
+    signature = hashlib.sha1(signature_string.encode()).hexdigest()
+    
+    return jsonify({
+        'success': True,
+        'cloud_name': cloudinary_config['cloud_name'],
+        'api_key': cloudinary_config['api_key'],
+        'timestamp': timestamp,
+        'signature': signature,
+        'folder': folder,
+        'resource_type': resource_type
+    })
+
+
+@app.route('/api/save-announcement', methods=['POST'])
+@login_required(role='admin')
+def api_save_announcement():
+    """API: 创建公告"""
+    data = request.get_json()
+    
+    if not data:
+        return jsonify({'success': False, 'message': '缺少参数'}), 400
+    
+    title = data.get('title', '').strip()
+    content = data.get('content', '').strip()
+    image_url = data.get('image_url')
+    image_cloudinary_id = data.get('image_cloudinary_id')
+    
+    if not title:
+        return jsonify({'success': False, 'message': '公告标题不能为空'}), 400
+    
+    try:
+        announcement_id = create_announcement(
+            title=title,
+            content=content,
+            image_url=image_url,
+            image_cloudinary_id=image_cloudinary_id
+        )
+        print(f"✓ 公告已创建: {title}")
+        
+        return jsonify({
+            'success': True,
+            'message': '公告创建成功',
+            'announcement_id': announcement_id
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'创建失败: {str(e)}'}), 500
+
+
+@app.route('/api/update-announcement', methods=['POST'])
+@login_required(role='admin')
+def api_update_announcement():
+    """API: 更新公告"""
+    data = request.get_json()
+    
+    if not data:
+        return jsonify({'success': False, 'message': '缺少参数'}), 400
+    
+    announcement_id = data.get('id')
+    title = data.get('title', '').strip()
+    content = data.get('content', '').strip()
+    image_url = data.get('image_url')
+    image_cloudinary_id = data.get('image_cloudinary_id')
+    is_active = data.get('is_active')
+    
+    if not announcement_id:
+        return jsonify({'success': False, 'message': '缺少公告ID'}), 400
+    
+    if not title:
+        return jsonify({'success': False, 'message': '公告标题不能为空'}), 400
+    
+    try:
+        # 处理图片：如果没有传新图片，设置 image_url=None 以保留原图
+        if image_url == '':
+            image_url = None
+            image_cloudinary_id = None
+        
+        success = update_announcement(
+            announcement_id=announcement_id,
+            title=title,
+            content=content,
+            image_url=image_url,
+            image_cloudinary_id=image_cloudinary_id,
+            is_active=is_active
+        )
+        
+        if success:
+            print(f"✓ 公告已更新: {title}")
+            return jsonify({
+                'success': True,
+                'message': '公告更新成功'
+            })
+        else:
+            return jsonify({'success': False, 'message': '公告不存在'}), 404
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'更新失败: {str(e)}'}), 500
+
+
+@app.route('/api/toggle-announcement/<int:announcement_id>', methods=['POST'])
+@login_required(role='admin')
+def api_toggle_announcement(announcement_id):
+    """API: 切换公告启用/停用状态"""
+    try:
+        success = toggle_announcement(announcement_id)
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'message': '状态切换成功'
+            })
+        else:
+            return jsonify({'success': False, 'message': '公告不存在'}), 404
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'操作失败: {str(e)}'}), 500
+
+
+@app.route('/api/delete-announcement/<int:announcement_id>', methods=['POST'])
+@login_required(role='admin')
+def api_delete_announcement(announcement_id):
+    """API: 删除公告"""
+    try:
+        # 获取公告信息（用于删除 Cloudinary 图片）
+        announcement = get_announcement_by_id(announcement_id)
+        
+        if not announcement:
+            return jsonify({'success': False, 'message': '公告不存在'}), 404
+        
+        # 删除 Cloudinary 上的图片（如果存在）
+        if USE_CLOUDINARY and announcement.get('image_cloudinary_id'):
+            try:
+                cloudinary.uploader.destroy(announcement['image_cloudinary_id'])
+                print(f"✓ 已删除 Cloudinary 上的公告图片: {announcement['image_cloudinary_id']}")
+            except Exception as e:
+                print(f"⚠ 删除 Cloudinary 图片失败: {e}")
+        
+        success = delete_announcement(announcement_id)
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'message': '公告已删除'
+            })
+        else:
+            return jsonify({'success': False, 'message': '删除失败'}), 500
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'删除失败: {str(e)}'}), 500
 
 
 @app.route('/admin/delete_video/<int:video_id>')

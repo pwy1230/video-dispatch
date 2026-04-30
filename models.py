@@ -146,6 +146,20 @@ def init_db():
         )
     ''')
     
+    # 公告表
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS announcements (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            content TEXT,
+            image_url TEXT,
+            image_cloudinary_id TEXT,
+            is_active INTEGER DEFAULT 1 CHECK(is_active IN (0, 1)),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    
     conn.commit()
     conn.close()
     print("✓ 数据库初始化完成")
@@ -623,6 +637,153 @@ def get_screenshot_stats():
     return {
         'total_screenshots': total,
         'device_count': device_count
+    }
+
+
+# ============== 公告管理函数 ==============
+
+def create_announcement(title, content=None, image_url=None, image_cloudinary_id=None):
+    """创建公告"""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    cursor.execute(
+        '''INSERT INTO announcements (title, content, image_url, image_cloudinary_id) 
+           VALUES (?, ?, ?, ?)''',
+        (title, content, image_url, image_cloudinary_id)
+    )
+    announcement_id = cursor.lastrowid
+    
+    conn.commit()
+    conn.close()
+    return announcement_id
+
+
+def get_active_announcements():
+    """获取所有启用的公告"""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+        SELECT id, title, content, image_url, image_cloudinary_id, is_active, 
+               created_at, updated_at
+        FROM announcements
+        WHERE is_active = 1
+        ORDER BY created_at DESC
+    ''')
+    
+    announcements = [dict_from_row(row) for row in cursor.fetchall()]
+    conn.close()
+    return announcements
+
+
+def get_all_announcements():
+    """获取所有公告（管理用）"""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+        SELECT id, title, content, image_url, image_cloudinary_id, is_active, 
+               created_at, updated_at
+        FROM announcements
+        ORDER BY created_at DESC
+    ''')
+    
+    announcements = [dict_from_row(row) for row in cursor.fetchall()]
+    conn.close()
+    return announcements
+
+
+def get_announcement_by_id(announcement_id):
+    """根据ID获取公告"""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    cursor.execute('SELECT * FROM announcements WHERE id = ?', (announcement_id,))
+    announcement = cursor.fetchone()
+    conn.close()
+    return dict_from_row(announcement) if announcement else None
+
+
+def update_announcement(announcement_id, title, content=None, image_url=None, 
+                        image_cloudinary_id=None, is_active=None):
+    """更新公告"""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    # 获取现有公告
+    cursor.execute('SELECT image_cloudinary_id, image_url FROM announcements WHERE id = ?', (announcement_id,))
+    existing = cursor.fetchone()
+    if not existing:
+        conn.close()
+        return False
+    
+    existing = dict_from_row(existing)
+    
+    # 如果没有传入新图片，保留原图
+    if image_url is None:
+        image_url = existing.get('image_url')
+        image_cloudinary_id = existing.get('image_cloudinary_id')
+    
+    cursor.execute('''
+        UPDATE announcements 
+        SET title = ?, content = ?, image_url = ?, image_cloudinary_id = ?,
+            is_active = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+    ''', (title, content, image_url, image_cloudinary_id, is_active, announcement_id))
+    
+    updated = cursor.rowcount > 0
+    conn.commit()
+    conn.close()
+    return updated
+
+
+def delete_announcement(announcement_id):
+    """删除公告"""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    cursor.execute('DELETE FROM announcements WHERE id = ?', (announcement_id,))
+    deleted = cursor.rowcount > 0
+    conn.commit()
+    conn.close()
+    return deleted
+
+
+def toggle_announcement(announcement_id):
+    """切换公告启用/停用状态"""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+        UPDATE announcements 
+        SET is_active = CASE WHEN is_active = 1 THEN 0 ELSE 1 END,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+    ''', (announcement_id,))
+    
+    toggled = cursor.rowcount > 0
+    conn.commit()
+    conn.close()
+    return toggled
+
+
+def get_announcement_stats():
+    """获取公告统计数据"""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    cursor.execute('SELECT COUNT(*) FROM announcements WHERE is_active = 1')
+    active_count = cursor.fetchone()[0]
+    
+    cursor.execute('SELECT COUNT(*) FROM announcements')
+    total_count = cursor.fetchone()[0]
+    
+    conn.close()
+    
+    return {
+        'active_count': active_count,
+        'total_count': total_count
     }
 
 

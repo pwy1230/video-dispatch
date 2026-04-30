@@ -71,6 +71,11 @@
                     <div class="stat-value">{{ stats.total_screenshots or 0 }}</div>
                     <div class="stat-label">发布截图（点击查看）</div>
                 </a>
+                <a href="{{ url_for('admin_announcements') }}" class="stat-card stat-card-link" style="text-decoration: none;">
+                    <div class="stat-icon">📢</div>
+                    <div class="stat-value">{{ announcement_stats.active_count }}/{{ announcement_stats.total_count }}</div>
+                    <div class="stat-label">公告管理（点击查看）</div>
+                </a>
             </div>
 
             <!-- 内容区域 -->
