@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>发布截图管理 - 视频派发系统</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        /* 页面特定样式 */
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+        
+        .page-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .back-btn {
+            padding: 10px 20px;
+            border-radius: 10px;
+            background: var(--bg-input);
+            color: var(--text-primary);
+            text-decoration: none;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+        }
+        
+        .back-btn:hover {
+            background: var(--primary);
+            color: white;
+        }
+        
+        /* 截图分组 */
+        .screenshot-group {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        
+        .group-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .group-video-icon {
+            font-size: 1.5rem;
+        }
+        
+        .group-info {
+            flex: 1;
+        }
+        
+        .group-video-name {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        
+        .group-device-id {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+        
+        .group-count {
+            padding: 4px 12px;
+            background: var(--success);
+            border-radius: 20px;
+            font-size: 0.85rem;
+            color: white;
+        }
+        
+        /* 截图网格 */
+        .screenshot-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 16px;
+        }
+        
+        .screenshot-card {
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 12px;
+            padding: 12px;
+            transition: all 0.2s;
+        }
+        
+        .screenshot-card:hover {
+            background: rgba(255, 255, 255, 0.06);
+        }
+        
+        .screenshot-card-image {
+            width: 100%;
+            aspect-ratio: 16/9;
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 12px;
+            cursor: pointer;
+        }
+        
+        .screenshot-card-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.3s;
+        }
+        
+        .screenshot-card-image:hover img {
+            transform: scale(1.05);
+        }
+        
+        .screenshot-card-url {
+            font-size: 0.85rem;
+            color: var(--primary-light);
+            word-break: break-all;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: flex-start;
+            gap: 6px;
+        }
+        
+        .screenshot-card-url a {
+            color: var(--primary-light);
+            text-decoration: none;
+        }
+        
+        .screenshot-card-url a:hover {
+            text-decoration: underline;
+        }
+        
+        .screenshot-card-note {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+            padding: 8px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 6px;
+        }
+        
+        .screenshot-card-time {
+            font-size: 0.8rem;
+            color: var(--secondary);
+        }
+        
+        /* 空状态 */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+        }
+        
+        .empty-icon {
+            font-size: 4rem;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+        
+        .empty-text {
+            font-size: 1.1rem;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+        }
+        
+        .empty-subtext {
+            font-size: 0.9rem;
+            color: var(--secondary);
+        }
+        
+        /* 图片查看器 */
+        .image-viewer {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.95);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .image-viewer.active {
+            display: flex;
+        }
+        
+        .image-viewer img {
+            max-width: 90%;
+            max-height: 90%;
+            object-fit: contain;
+        }
+        
+        .image-viewer-close {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            border: none;
+            background: var(--bg-card);
+            color: var(--text-primary);
+            font-size: 1.5rem;
+            cursor: pointer;
+        }
+        
+        .image-viewer-close:hover {
+            background: var(--danger);
+        }
+        
+        /* 统计卡片样式调整 */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        
+        .stat-card {
+            background: var(--bg-card);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            transition: all 0.3s;
+        }
+        
+        .stat-card-link:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 40px rgba(59, 130, 246, 0.3);
+            border-color: var(--primary);
+        }
+        
+        .stat-icon {
+            font-size: 2rem;
+            margin-bottom: 8px;
+        }
+        
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--primary-light);
+        }
+        
+        .stat-label {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+        
+        /* 移动端适配 */
+        @media (max-width: 768px) {
+            .page-header {
+                flex-direction: column;
+                gap: 16px;
+                align-items: flex-start;
+            }
+            
+            .screenshot-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="page-wrapper">
+        <!-- 导航栏 -->
+        <nav class="navbar">
+            <div class="navbar-content">
+                <a href="{{ url_for('admin_dashboard') }}" class="navbar-brand">
+                    <span class="icon">🎬</span>
+                    视频派发系统
+                </a>
+                
+                <div class="navbar-nav">
+                    <a href="{{ url_for('admin_dashboard') }}" class="nav-link">
+                        <span>📊</span>
+                        返回后台
+                    </a>
+                    <div class="user-info">
+                        <span>{{ session.username }}</span>
+                        <span class="user-role admin">管理员</span>
+                    </div>
+                    <a href="{{ url_for('logout') }}" class="nav-link">
+                        <span>🚪</span>
+                        退出
+                    </a>
+                </div>
+            </div>
+        </nav>
+
+        <!-- 主内容 -->
+        <main class="container">
+            <div class="page-header">
+                <h1 class="page-title">
+                    <span>📸</span>
+                    发布截图管理
+                </h1>
+                <a href="{{ url_for('admin_dashboard') }}" class="back-btn">
+                    ← 返回后台
+                </a>
+            </div>
+            
+            <!-- 统计卡片 -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon">📊</div>
+                    <div class="stat-value">{{ stats.total_screenshots }}</div>
+                    <div class="stat-label">截图总数</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">📱</div>
+                    <div class="stat-value">{{ stats.device_count }}</div>
+                    <div class="stat-label">参与设备数</div>
+                </div>
+            </div>
+            
+            <!-- 截图列表 -->
+            {% if screenshots %}
+                {# 按设备分组 #}
+                {% set grouped = {} %}
+                {% for s in screenshots %}
+                    {% if s.device_id not in grouped %}
+                        {% set _ = grouped.update({s.device_id: []}) %}
+                    {% endif %}
+                    {% set _ = grouped[s.device_id].append(s) %}
+                {% endfor %}
+                
+                {% for device_id, items in grouped.items() %}
+                <div class="screenshot-group">
+                    <div class="group-header">
+                        <span class="group-video-icon">📱</span>
+                        <div class="group-info">
+                            <div class="group-device-id">设备标识: {{ device_id }}</div>
+                            <div class="group-video-name">{{ items[0].video_name or '视频' }}</div>
+                        </div>
+                        <span class="group-count">{{ items|length }} 张截图</span>
+                    </div>
+                    
+                    <div class="screenshot-grid">
+                        {% for item in items %}
+                        <div class="screenshot-card">
+                            <div class="screenshot-card-image" onclick="openImageViewer('{{ item.cloudinary_url }}')">
+                                <img src="{{ item.cloudinary_url }}" alt="截图" loading="lazy">
+                            </div>
+                            <div class="screenshot-card-url">
+                                <span>🔗</span>
+                                <a href="{{ item.video_url }}" target="_blank">{{ item.video_url }}</a>
+                            </div>
+                            {% if item.note %}
+                            <div class="screenshot-card-note">
+                                📝 {{ item.note }}
+                            </div>
+                            {% endif %}
+                            <div class="screenshot-card-time">
+                                🕐 {{ item.uploaded_fmt }}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="empty-state">
+                    <div class="empty-icon">📸</div>
+                    <div class="empty-text">暂无发布截图</div>
+                    <div class="empty-subtext">员工上传发布截图后将显示在这里</div>
+                </div>
+            {% endif %}
+        </main>
+    </div>
+
+    <!-- 图片查看器 -->
+    <div class="image-viewer" id="image-viewer">
+        <button class="image-viewer-close" onclick="closeImageViewer()">×</button>
+        <img id="viewer-image" src="" alt="查看图片">
+    </div>
+
+    <script>
+        function openImageViewer(url) {
+            document.getElementById('viewer-image').src = url;
+            document.getElementById('image-viewer').classList.add('active');
+        }
+        
+        function closeImageViewer() {
+            document.getElementById('image-viewer').classList.remove('active');
+        }
+        
+        // ESC 关闭
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeImageViewer();
+            }
+        });
+        
+        // 点击背景关闭
+        document.getElementById('image-viewer').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeImageViewer();
+            }
+        });
+    </script>
+</body>
+</html>

@@ -66,6 +66,11 @@
                     <div class="stat-value">{{ stats.total_downloads }}</div>
                     <div class="stat-label">下载记录</div>
                 </div>
+                <a href="{{ url_for('admin_screenshots') }}" class="stat-card stat-card-link" style="text-decoration: none;">
+                    <div class="stat-icon">📸</div>
+                    <div class="stat-value">{{ stats.total_screenshots or 0 }}</div>
+                    <div class="stat-label">发布截图（点击查看）</div>
+                </a>
             </div>
 
             <!-- 内容区域 -->

@@ -23,7 +23,9 @@ from models import (
     add_video, get_available_videos, get_all_videos, 
     get_video_by_id, assign_random_video, delete_video,
     get_download_records, check_daily_limit,
-    add_image_group, get_image_group_items, delete_image_group
+    add_image_group, get_image_group_items, delete_image_group,
+    add_screenshot, get_screenshots_by_video, get_all_screenshots, 
+    get_screenshots_by_device, get_screenshot_stats
 )
 
 # ============== Flask 应用配置 ==============
@@ -280,6 +282,132 @@ def api_save_upload():
             'success': True,
             'message': '视频记录已保存'
         })
+
+
+# ============== 截图上传 API ==============
+
+@app.route('/api/screenshot-signature')
+def api_screenshot_signature():
+    """
+    API: 获取截图上传的 Cloudinary 签名
+    前端直传到 Cloudinary 时需要此签名进行身份验证
+    """
+    if not USE_CLOUDINARY:
+        return jsonify({'success': False, 'message': 'Cloudinary 未配置'}), 400
+    
+    import hashlib
+    import time
+    
+    timestamp = str(int(time.time()))
+    folder = 'screenshot_dispatch'
+    resource_type = 'image'
+    signature_string = f'folder={folder}&timestamp={timestamp}{cloudinary_config["api_secret"]}'
+    
+    signature = hashlib.sha1(signature_string.encode()).hexdigest()
+    
+    return jsonify({
+        'success': True,
+        'cloud_name': cloudinary_config['cloud_name'],
+        'api_key': cloudinary_config['api_key'],
+        'timestamp': timestamp,
+        'signature': signature,
+        'folder': folder,
+        'resource_type': resource_type
+    })
+
+
+@app.route('/api/save-screenshot', methods=['POST'])
+def api_save_screenshot():
+    """
+    API: 保存截图记录
+    截图直传 Cloudinary 成功后调用此接口，将截图信息存入数据库
+    """
+    data = request.get_json()
+    
+    if not data:
+        return jsonify({'success': False, 'message': '缺少参数'}), 400
+    
+    device_id = data.get('device_id')
+    video_id = data.get('video_id')
+    cloudinary_url = data.get('cloudinary_url')
+    cloudinary_public_id = data.get('cloudinary_public_id', '')
+    original_filename = data.get('original_filename', 'screenshot.png')
+    video_url = data.get('video_url', '').strip()
+    note = data.get('note', '')
+    
+    if not device_id:
+        return jsonify({'success': False, 'message': '缺少设备标识'}), 400
+    
+    if not video_id:
+        return jsonify({'success': False, 'message': '缺少视频ID'}), 400
+    
+    if not cloudinary_url:
+        return jsonify({'success': False, 'message': '缺少截图URL'}), 400
+    
+    if not video_url:
+        return jsonify({'success': False, 'message': '视频链接不能为空'}), 400
+    
+    try:
+        add_screenshot(
+            device_id, int(video_id), cloudinary_url, cloudinary_public_id,
+            original_filename, video_url, note if note else None
+        )
+        print(f"✓ 截图记录已保存: device={device_id}, video={video_id}")
+        
+        return jsonify({
+            'success': True,
+            'message': '截图记录已保存'
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'保存失败: {str(e)}'}), 500
+
+
+@app.route('/api/screenshots/<int:video_id>')
+def api_get_screenshots(video_id):
+    """API: 获取某个视频的所有截图"""
+    screenshots = get_screenshots_by_video(video_id)
+    
+    for s in screenshots:
+        s['uploaded_fmt'] = format_datetime(s.get('uploaded_at'))
+    
+    return jsonify({
+        'success': True,
+        'screenshots': screenshots
+    })
+
+
+@app.route('/api/device-screenshots')
+def api_get_device_screenshots():
+    """API: 获取当前设备的所有截图"""
+    device_id = request.args.get('device_id')
+    
+    if not device_id:
+        return jsonify({'success': False, 'message': '缺少设备标识'}), 400
+    
+    screenshots = get_screenshots_by_device(device_id)
+    
+    for s in screenshots:
+        s['uploaded_fmt'] = format_datetime(s.get('uploaded_at'))
+    
+    return jsonify({
+        'success': True,
+        'screenshots': screenshots
+    })
+
+
+@app.route('/admin/screenshots')
+@login_required(role='admin')
+def admin_screenshots():
+    """管理员查看所有截图页面"""
+    screenshots = get_all_screenshots()
+    screenshot_stats = get_screenshot_stats()
+    
+    for s in screenshots:
+        s['uploaded_fmt'] = format_datetime(s.get('uploaded_at'))
+    
+    return render_template('admin_screenshots.html',
+                           screenshots=screenshots,
+                           stats=screenshot_stats)
 
 
 @app.route('/admin/video-pool')

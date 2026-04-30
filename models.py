@@ -130,6 +130,22 @@ def init_db():
         )
         print("✓ 已创建默认管理员账号: admin / admin123")
     
+    # 创建发布截图表
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS upload_screenshots (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            device_id TEXT NOT NULL,
+            video_id INTEGER NOT NULL,
+            cloudinary_url TEXT NOT NULL,
+            cloudinary_public_id TEXT,
+            original_filename TEXT NOT NULL,
+            video_url TEXT NOT NULL,
+            note TEXT,
+            uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (video_id) REFERENCES videos(id)
+        )
+    ''')
+    
     conn.commit()
     conn.close()
     print("✓ 数据库初始化完成")
@@ -510,7 +526,101 @@ def get_stats():
         'admin_count': role_counts.get('admin', 0),
         'uploader_count': role_counts.get('uploader', 0),
         'employee_count': role_counts.get('employee', 0),
-        'total_downloads': downloads
+        'total_downloads': downloads,
+        'total_screenshots': cursor.execute('SELECT COUNT(*) FROM upload_screenshots').fetchone()[0] if conn else 0
+    }
+
+
+def add_screenshot(device_id, video_id, cloudinary_url, cloudinary_public_id, original_filename, video_url, note=None):
+    """添加发布截图记录"""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    cursor.execute(
+        '''INSERT INTO upload_screenshots 
+           (device_id, video_id, cloudinary_url, cloudinary_public_id, original_filename, video_url, note)
+           VALUES (?, ?, ?, ?, ?, ?, ?)''',
+        (device_id, video_id, cloudinary_url, cloudinary_public_id, original_filename, video_url, note)
+    )
+    
+    conn.commit()
+    conn.close()
+    return cursor.lastrowid
+
+
+def get_screenshots_by_video(video_id):
+    """获取某个视频的所有截图"""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+        SELECT id, device_id, video_id, cloudinary_url, cloudinary_public_id,
+               original_filename, video_url, note, uploaded_at
+        FROM upload_screenshots
+        WHERE video_id = ?
+        ORDER BY uploaded_at DESC
+    ''', (video_id,))
+    
+    screenshots = [dict_from_row(row) for row in cursor.fetchall()]
+    conn.close()
+    return screenshots
+
+
+def get_all_screenshots():
+    """获取所有截图记录"""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+        SELECT s.id, s.device_id, s.video_id, s.cloudinary_url, s.cloudinary_public_id,
+               s.original_filename, s.video_url, s.note, s.uploaded_at,
+               v.original_filename as video_name, v.type as video_type
+        FROM upload_screenshots s
+        JOIN videos v ON s.video_id = v.id
+        ORDER BY s.uploaded_at DESC
+    ''')
+    
+    screenshots = [dict_from_row(row) for row in cursor.fetchall()]
+    conn.close()
+    return screenshots
+
+
+def get_screenshots_by_device(device_id):
+    """获取某个设备的所有截图"""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+        SELECT s.id, s.device_id, s.video_id, s.cloudinary_url, s.cloudinary_public_id,
+               s.original_filename, s.video_url, s.note, s.uploaded_at,
+               v.original_filename as video_name
+        FROM upload_screenshots s
+        JOIN videos v ON s.video_id = v.id
+        WHERE s.device_id = ?
+        ORDER BY s.uploaded_at DESC
+    ''', (device_id,))
+    
+    screenshots = [dict_from_row(row) for row in cursor.fetchall()]
+    conn.close()
+    return screenshots
+
+
+def get_screenshot_stats():
+    """获取截图统计数据"""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    cursor.execute('SELECT COUNT(*) FROM upload_screenshots')
+    total = cursor.fetchone()[0]
+    
+    cursor.execute('SELECT COUNT(DISTINCT device_id) FROM upload_screenshots')
+    device_count = cursor.fetchone()[0]
+    
+    conn.close()
+    
+    return {
+        'total_screenshots': total,
+        'device_count': device_count
     }
 
 
