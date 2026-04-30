@@ -5,6 +5,105 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>上传视频 - 视频派发系统</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        .upload-progress-area {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f5f5f5;
+            border-radius: 8px;
+        }
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            font-weight: 500;
+        }
+        .progress-bar-wrapper {
+            height: 20px;
+            background: #e0e0e0;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #4CAF50, #8BC34A);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+        .upload-result {
+            margin-top: 15px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .upload-item {
+            padding: 8px 12px;
+            margin: 5px 0;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .upload-item.success {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+        .upload-item.error {
+            background: #ffebee;
+            color: #c62828;
+        }
+        .upload-item.pending {
+            background: #fff3e0;
+            color: #ef6c00;
+        }
+        .upload-item.uploading {
+            background: #e3f2fd;
+            color: #1565c0;
+        }
+        .selected-files {
+            margin-top: 15px;
+            padding: 15px;
+            background: #fafafa;
+            border-radius: 8px;
+        }
+        .selected-files h4 {
+            margin: 0 0 10px 0;
+            color: #333;
+        }
+        .selected-files ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        .selected-files li {
+            padding: 5px 10px;
+            background: #fff;
+            margin: 3px 0;
+            border-radius: 4px;
+            border-left: 3px solid #4CAF50;
+        }
+        .btn {
+            padding: 10px 24px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        .btn-primary {
+            background: #4CAF50;
+            color: white;
+        }
+        .btn-primary:hover {
+            background: #43a047;
+        }
+        .btn-primary:disabled {
+            background: #a5d6a7;
+            cursor: not-allowed;
+        }
+        .mt-2 {
+            margin-top: 10px;
+        }
+    </style>
 </head>
 <body>
     <div class="page-wrapper">
@@ -52,19 +151,37 @@
             <div class="card mt-3">
                 <div class="card-header">
                     <h2 class="card-title">📤 上传视频到视频池</h2>
-                    <span class="text-muted">支持 MP4、AVI、MOV、MKV 格式，最大 500MB</span>
+                    <span class="text-muted">支持 MP4、AVI、MOV、MKV 格式，单个最大 500MB</span>
                 </div>
                 
                 <form id="upload-form" action="{{ url_for('upload_video') }}" method="POST" 
                       enctype="multipart/form-data">
-                    <div class="upload-zone">
+                    <div class="upload-zone" id="upload-zone">
                         <div class="upload-zone-icon">📁</div>
                         <div class="upload-zone-text">点击或拖拽视频文件到此处上传</div>
-                        <div class="upload-zone-hint">支持 MP4、AVI、MOV、MKV、WEBM 格式</div>
-                        <input type="file" name="video" class="upload-input" 
-                               accept="video/*,.mp4,.avi,.mov,.mkv,.webm,.flv,.wmv">
+                        <div class="upload-zone-hint">支持一次选择多个视频</div>
+                        <input type="file" name="video" class="upload-input" id="video-input"
+                               accept="video/*,.mp4,.avi,.mov,.mkv,.webm,.flv,.wmv" multiple>
                     </div>
                 </form>
+                
+                <!-- 上传进度区域 -->
+                <div id="upload-progress-area" class="upload-progress-area" style="display: none;">
+                    <div class="progress-header">
+                        <span id="progress-text">正在上传 0/0</span>
+                        <span id="progress-percent">0%</span>
+                    </div>
+                    <div class="progress-bar-wrapper">
+                        <div class="progress-bar" id="progress-bar"></div>
+                    </div>
+                    <div id="upload-result" class="upload-result"></div>
+                </div>
+                
+                <div id="selected-files" class="selected-files" style="display: none;">
+                    <h4>已选择的文件：</h4>
+                    <ul id="file-list"></ul>
+                    <button type="button" class="btn btn-primary mt-2" id="start-upload-btn">开始上传</button>
+                </div>
             </div>
 
             <!-- 已上传视频列表 -->
@@ -127,5 +244,189 @@
     </div>
 
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script>
+        const videoInput = document.getElementById('video-input');
+        const uploadZone = document.getElementById('upload-zone');
+        const selectedFilesDiv = document.getElementById('selected-files');
+        const fileList = document.getElementById('file-list');
+        const startUploadBtn = document.getElementById('start-upload-btn');
+        const uploadProgressArea = document.getElementById('upload-progress-area');
+        const progressText = document.getElementById('progress-text');
+        const progressPercent = document.getElementById('progress-percent');
+        const progressBar = document.getElementById('progress-bar');
+        const uploadResult = document.getElementById('upload-result');
+
+        let selectedFiles = [];
+        let isUploading = false;
+
+        // 格式化文件大小
+        function formatSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+            return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+        }
+
+        // 文件选择处理
+        videoInput.addEventListener('change', function(e) {
+            const files = Array.from(e.target.files);
+            if (files.length === 0) return;
+            
+            selectedFiles = files;
+            
+            // 显示已选文件列表
+            fileList.innerHTML = '';
+            files.forEach((file, index) => {
+                const li = document.createElement('li');
+                li.textContent = `${index + 1}. ${file.name} (${formatSize(file.size)})`;
+                fileList.appendChild(li);
+            });
+            
+            selectedFilesDiv.style.display = 'block';
+            uploadProgressArea.style.display = 'none';
+        });
+
+        // 拖拽上传支持
+        uploadZone.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            uploadZone.classList.add('dragover');
+        });
+
+        uploadZone.addEventListener('dragleave', function(e) {
+            e.preventDefault();
+            uploadZone.classList.remove('dragover');
+        });
+
+        uploadZone.addEventListener('drop', function(e) {
+            e.preventDefault();
+            uploadZone.classList.remove('dragover');
+            
+            const files = Array.from(e.dataTransfer.files).filter(f => 
+                f.type.startsWith('video/') || 
+                /\.(mp4|avi|mov|mkv|webm|flv|wmv)$/i.test(f.name)
+            );
+            
+            if (files.length === 0) {
+                alert('请选择视频文件');
+                return;
+            }
+            
+            // 创建新的 FileList
+            const dt = new DataTransfer();
+            files.forEach(f => dt.items.add(f));
+            videoInput.files = dt.files;
+            videoInput.dispatchEvent(new Event('change'));
+        });
+
+        // 开始上传 - 使用批量上传接口
+        startUploadBtn.addEventListener('click', async function() {
+            if (selectedFiles.length === 0 || isUploading) return;
+            
+            isUploading = true;
+            startUploadBtn.disabled = true;
+            startUploadBtn.textContent = '上传中...';
+            
+            selectedFilesDiv.style.display = 'none';
+            uploadProgressArea.style.display = 'block';
+            uploadResult.innerHTML = '';
+            
+            // 显示所有文件为上传中状态
+            selectedFiles.forEach((file, index) => {
+                const item = document.createElement('div');
+                item.className = 'upload-item uploading';
+                item.id = `upload-item-${index}`;
+                item.innerHTML = `<span>⏳</span> ${file.name} - 等待上传...`;
+                uploadResult.appendChild(item);
+            });
+            
+            // 使用批量上传接口，一次提交所有文件
+            const total = selectedFiles.length;
+            progressText.textContent = `正在上传 0/${total}`;
+            progressPercent.textContent = '0%';
+            progressBar.style.width = '0%';
+            
+            try {
+                const formData = new FormData();
+                selectedFiles.forEach(file => {
+                    formData.append('video', file);
+                });
+                
+                // 显示正在上传状态
+                for (let i = 0; i < selectedFiles.length; i++) {
+                    const item = document.getElementById(`upload-item-${i}`);
+                    if (item) {
+                        item.className = 'upload-item uploading';
+                        item.innerHTML = `<span>⏳</span> ${selectedFiles[i].name} - 上传中...`;
+                    }
+                }
+                
+                const response = await fetch('{{ url_for("upload_video_batch") }}', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                // 更新进度显示
+                progressText.textContent = `正在上传 ${result.total}/${result.total}`;
+                progressPercent.textContent = '100%';
+                progressBar.style.width = '100%';
+                
+                // 更新每个文件的状态
+                if (result.results) {
+                    result.results.forEach((r, index) => {
+                        const item = document.getElementById(`upload-item-${index}`);
+                        if (item) {
+                            if (r.success) {
+                                item.className = 'upload-item success';
+                                item.innerHTML = `<span>✅</span> ${r.filename || selectedFiles[index].name} - 上传成功`;
+                            } else {
+                                item.className = 'upload-item error';
+                                item.innerHTML = `<span>❌</span> ${r.filename || selectedFiles[index].name} - ${r.message}`;
+                            }
+                        }
+                    });
+                }
+                
+                // 显示统计结果
+                const summary = document.createElement('div');
+                summary.style.marginTop = '15px';
+                summary.style.padding = '10px';
+                
+                if (result.success) {
+                    summary.style.background = '#e8f5e9';
+                    summary.style.color = '#2e7d32';
+                    summary.innerHTML = `🎉 上传完成！成功 ${result.success_count} 个`;
+                } else {
+                    summary.style.background = result.error_count > 0 ? '#fff3e0' : '#e8f5e9';
+                    summary.style.color = result.error_count > 0 ? '#ef6c00' : '#2e7d32';
+                    summary.innerHTML = `📊 上传完成！成功 ${result.success_count} 个${result.error_count > 0 ? `，失败 ${result.error_count} 个` : ''}`;
+                }
+                summary.style.borderRadius = '6px';
+                summary.style.fontWeight = '500';
+                uploadResult.appendChild(summary);
+                
+            } catch (error) {
+                // 显示错误状态
+                const errorItem = document.createElement('div');
+                errorItem.className = 'upload-item error';
+                errorItem.innerHTML = `<span>❌</span> 上传失败: ${error.message}`;
+                uploadResult.appendChild(errorItem);
+            }
+            
+            isUploading = false;
+            startUploadBtn.disabled = false;
+            startUploadBtn.textContent = '开始上传';
+            
+            // 清空文件选择
+            videoInput.value = '';
+            selectedFiles = [];
+            
+            // 2秒后刷新页面查看最新列表
+            setTimeout(() => {
+                window.location.reload();
+            }, 2000);
+        });
+    </script>
 </body>
 </html>

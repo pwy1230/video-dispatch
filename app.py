@@ -29,7 +29,7 @@ from models import (
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', os.urandom(24))
 
-# 视频上传配置
+# 允许的文件扩展名
 ALLOWED_EXTENSIONS = {'mp4', 'avi', 'mov', 'mkv', 'webm', 'flv', 'wmv'}
 MAX_CONTENT_LENGTH = 500 * 1024 * 1024  # 500MB
 
@@ -522,6 +522,120 @@ def upload_video():
         flash('不支持的文件格式，请上传 MP4、AVI、MOV、MKV 等格式', 'error')
     
     return redirect(url_for('upload_page'))
+
+
+@app.route('/upload/batch', methods=['POST'])
+@login_required(role='uploader')
+def upload_video_batch():
+    """
+    批量处理视频上传（接收多个文件，逐个处理）
+    """
+    if 'video' not in request.files:
+        return jsonify({'success': False, 'message': '没有选择文件'}), 400
+    
+    files = request.files.getlist('video')
+    
+    if not files or len(files) == 0:
+        return jsonify({'success': False, 'message': '没有选择文件'}), 400
+    
+    results = []
+    success_count = 0
+    error_count = 0
+    
+    for file in files:
+        if file.filename == '':
+            error_count += 1
+            results.append({
+                'filename': '',
+                'success': False,
+                'message': '文件名为空'
+            })
+            continue
+        
+        if file and allowed_file(file.filename):
+            try:
+                original_filename = secure_filename(file.filename)
+                ext = original_filename.rsplit('.', 1)[1].lower()
+                stored_filename = f"{uuid.uuid4().hex}.{ext}"
+                
+                # 获取文件大小
+                file.seek(0, 2)
+                file_size = file.tell()
+                file.seek(0)
+                
+                cloudinary_public_id = None
+                cloudinary_url = None
+                
+                if USE_CLOUDINARY:
+                    # 上传到 Cloudinary
+                    try:
+                        # 创建临时文件
+                        with tempfile.NamedTemporaryFile(delete=False, suffix=f'.{ext}') as tmp:
+                            shutil.copyfileobj(file, tmp)
+                            tmp_path = tmp.name
+                        
+                        # 上传到 Cloudinary
+                        upload_result = cloudinary.uploader.upload_large(
+                            tmp_path,
+                            resource_type='video',
+                            folder='video_dispatch',
+                            public_id=stored_filename.rsplit('.', 1)[0],
+                            chunk_size=6000000
+                        )
+                        
+                        cloudinary_public_id = upload_result.get('public_id')
+                        cloudinary_url = upload_result.get('secure_url')
+                        
+                        # 删除临时文件
+                        os.remove(tmp_path)
+                        
+                    except Exception as e:
+                        # 回退到本地存储
+                        file_path = os.path.join(UPLOAD_FOLDER, stored_filename)
+                        file.seek(0)
+                        file.save(file_path)
+                else:
+                    # 本地存储
+                    file_path = os.path.join(UPLOAD_FOLDER, stored_filename)
+                    file.save(file_path)
+                
+                # 保存到数据库
+                user = get_current_user()
+                add_video(
+                    original_filename, stored_filename, file_size, user['id'],
+                    cloudinary_public_id=cloudinary_public_id,
+                    cloudinary_url=cloudinary_url
+                )
+                
+                success_count += 1
+                results.append({
+                    'filename': original_filename,
+                    'success': True,
+                    'message': '上传成功'
+                })
+                
+            except Exception as e:
+                error_count += 1
+                results.append({
+                    'filename': file.filename,
+                    'success': False,
+                    'message': str(e)
+                })
+        else:
+            error_count += 1
+            results.append({
+                'filename': file.filename,
+                'success': False,
+                'message': '不支持的文件格式'
+            })
+    
+    return jsonify({
+        'success': error_count == 0,
+        'success_count': success_count,
+        'error_count': error_count,
+        'total': len(files),
+        'results': results
+    })
 
 
 # ============== 健康检查 ==============
