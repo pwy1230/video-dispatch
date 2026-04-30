@@ -25,6 +25,8 @@ def dict_from_row(row):
     """将数据库行转换为字典"""
     if row is None:
         return None
+    if isinstance(row, sqlite3.Row):
+        return dict(row)
     return dict(zip([d[0] for d in row.description], row))
 
 
