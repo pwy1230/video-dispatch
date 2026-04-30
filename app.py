@@ -282,6 +282,22 @@ def api_save_upload():
         })
 
 
+@app.route('/admin/video-pool')
+@login_required(role='admin')
+def admin_video_pool():
+    """视频池管理页面（独立页面）"""
+    stats = get_stats()
+    videos = get_all_videos()
+    
+    for v in videos:
+        v['file_size_fmt'] = format_file_size(v.get('file_size'))
+        v['uploaded_fmt'] = format_datetime(v.get('uploaded_at'))
+    
+    return render_template('video_pool.html', 
+                           stats=stats, 
+                           videos=videos)
+
+
 # ============== 启动时初始化 ==============
 with app.app_context():
     init_db()

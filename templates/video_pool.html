@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>视频池管理 - 视频派发系统</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        .page-container {
+            max-width: 1800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+        
+        .page-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .back-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 20px;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+        
+        .back-btn:hover {
+            background: var(--border);
+            color: var(--text-primary);
+        }
+        
+        .video-pool-card {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: var(--shadow);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        
+        .video-pool-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .video-pool-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        
+        .header-info {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        
+        .stats-text {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+        
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .table th {
+            text-align: left;
+            padding: 14px 16px;
+            background: rgba(0, 0, 0, 0.2);
+            color: var(--text-secondary);
+            font-weight: 600;
+            font-size: 0.875rem;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .table td {
+            padding: 14px 16px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            vertical-align: middle;
+        }
+        
+        .table tbody tr:hover {
+            background: rgba(59, 130, 246, 0.05);
+        }
+        
+        .disabled-row {
+            opacity: 0.5;
+        }
+        
+        .video-name {
+            max-width: 300px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        
+        .modal-overlay.active {
+            display: flex;
+        }
+        
+        .modal {
+            background: var(--bg-card);
+            border-radius: 16px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 90vh;
+            overflow: hidden;
+            border: 1px solid var(--border);
+        }
+        
+        .modal-large {
+            max-width: 900px;
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .modal-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        
+        .modal-close {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 1.5rem;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 6px;
+            transition: all 0.2s;
+        }
+        
+        .modal-close:hover {
+            background: var(--bg-input);
+            color: var(--text-primary);
+        }
+        
+        .modal-body {
+            padding: 24px;
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+        
+        .image-preview-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 12px;
+        }
+        
+        .image-preview-item {
+            position: relative;
+            aspect-ratio: 1;
+            border-radius: 8px;
+            overflow: hidden;
+            cursor: pointer;
+        }
+        
+        .image-preview-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.3s;
+        }
+        
+        .image-preview-item:hover img {
+            transform: scale(1.05);
+        }
+        
+        .image-preview-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        
+        .image-preview-item:hover .image-preview-overlay {
+            opacity: 1;
+        }
+        
+        .zoom-icon {
+            font-size: 1.5rem;
+        }
+        
+        .lightbox-content {
+            position: relative;
+            max-width: 90vw;
+            max-height: 90vh;
+        }
+        
+        .lightbox-content img {
+            max-width: 100%;
+            max-height: 85vh;
+            object-fit: contain;
+            border-radius: 8px;
+        }
+        
+        .lightbox-close {
+            position: absolute;
+            top: -40px;
+            right: 0;
+        }
+        
+        .text-muted {
+            color: var(--text-secondary);
+        }
+        
+        .text-center {
+            text-align: center;
+        }
+        
+        .flex {
+            display: flex;
+        }
+        
+        .items-center {
+            align-items: center;
+        }
+        
+        .gap-2 {
+            gap: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="page-wrapper">
+        <!-- 导航栏 -->
+        <nav class="navbar">
+            <div class="navbar-content" style="max-width: 1800px;">
+                <a href="{{ url_for('admin_dashboard') }}" class="navbar-brand">
+                    <span class="icon">🎬</span>
+                    视频派发系统
+                </a>
+                
+                <div class="navbar-nav">
+                    <div class="user-info">
+                        <span>{{ session.username }}</span>
+                        <span class="user-role admin">管理员</span>
+                    </div>
+                    <a href="{{ url_for('logout') }}" class="nav-link">
+                        <span>🚪</span>
+                        退出
+                    </a>
+                </div>
+            </div>
+        </nav>
+
+        <!-- 主内容 -->
+        <main class="page-container">
+            <!-- Flash 消息 -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+            <div class="flash-messages">
+                {% for category, message in messages %}
+                <div class="flash flash-{{ category }}">
+                    <span>{{ message }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+            {% endwith %}
+
+            <!-- 页面头部 -->
+            <div class="page-header">
+                <h1 class="page-title">
+                    <span>📦</span>
+                    视频池管理
+                </h1>
+                <button class="back-btn" onclick="location.href='{{ url_for('admin_dashboard') }}'">
+                    <span>←</span>
+                    返回管理后台
+                </button>
+            </div>
+
+            <!-- 视频池内容 -->
+            <div class="video-pool-card">
+                <div class="video-pool-header">
+                    <h2 class="video-pool-title">📹 视频与图片组</h2>
+                    <div class="header-info">
+                        <span class="stats-text">共 {{ stats.total_videos }} 个视频，{{ stats.total_image_groups }} 个图片组</span>
+                        <button id="batch-delete-btn" class="btn btn-danger btn-sm" style="display: none;" onclick="batchDelete()">
+                            <span>🗑️</span> 批量删除 (<span id="selected-count">0</span>)
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="table-wrapper">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th style="width: 40px;">
+                                    <input type="checkbox" id="select-all" onchange="toggleSelectAll(this)">
+                                </th>
+                                <th>类型</th>
+                                <th>文件名</th>
+                                <th>大小</th>
+                                <th>上传者</th>
+                                <th>状态</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for video in videos %}
+                            <tr data-id="{{ video.id }}" data-type="{{ video.type }}" class="{% if video.is_assigned %}disabled-row{% endif %}">
+                                <td>
+                                    <input type="checkbox" class="video-checkbox" 
+                                           value="{{ video.id }}" 
+                                           data-type="{{ video.type }}"
+                                           onchange="updateSelection()"
+                                           {% if video.is_assigned %}disabled{% endif %}>
+                                </td>
+                                <td>
+                                    {% if video.type == 'image_group' %}
+                                    <span class="badge" style="background: #8b5cf6;">🖼️ 图片组</span>
+                                    {% else %}
+                                    <span class="badge" style="background: var(--primary);">🎬 视频</span>
+                                    {% endif %}
+                                </td>
+                                <td class="video-name" title="{{ video.original_filename }}">
+                                    {{ video.original_filename }}
+                                </td>
+                                <td>{{ video.file_size_fmt }}</td>
+                                <td>{{ video.uploader_name or '未知' }}</td>
+                                <td>
+                                    <span class="badge {% if video.is_assigned %}badge-assigned{% else %}badge-available{% endif %}">
+                                        {% if video.is_assigned %}已分发{% else %}待分发{% endif %}
+                                    </span>
+                                </td>
+                                <td>
+                                    {% if not video.is_assigned %}
+                                        <button class="btn btn-info btn-sm" onclick="previewMedia({{ video.id }}, '{{ video.type }}', '{{ video.cloudinary_url }}')">
+                                            预览
+                                        </button>
+                                        {% if video.type == 'image_group' %}
+                                        <a href="/admin/delete_image_group/{{ video.id }}" 
+                                           class="btn btn-danger btn-sm btn-delete"
+                                           data-message="确定要删除图片组 {{ video.original_filename }} 吗？">
+                                            删除
+                                        </a>
+                                        {% else %}
+                                        <a href="/admin/delete_video/{{ video.id }}" 
+                                           class="btn btn-danger btn-sm btn-delete"
+                                           data-message="确定要删除视频 {{ video.original_filename }} 吗？">
+                                            删除
+                                        </a>
+                                        {% endif %}
+                                    {% else %}
+                                    <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="7" class="text-center text-muted">暂无内容</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- 视频预览模态框 -->
+    <div class="modal-overlay" id="video-preview-modal">
+        <div class="modal modal-large">
+            <div class="modal-header">
+                <h3 class="modal-title">🎬 视频预览</h3>
+                <button class="modal-close" onclick="closeModal('video-preview-modal')">×</button>
+            </div>
+            <div class="modal-body">
+                <video id="preview-video-player" controls playsinline style="width: 100%; border-radius: 8px; background: #000;">
+                    您的浏览器不支持视频播放
+                </video>
+            </div>
+        </div>
+    </div>
+
+    <!-- 图片组预览模态框 -->
+    <div class="modal-overlay" id="image-group-preview-modal">
+        <div class="modal modal-large">
+            <div class="modal-header">
+                <h3 class="modal-title">🖼️ 图片组预览</h3>
+                <button class="modal-close" onclick="closeModal('image-group-preview-modal')">×</button>
+            </div>
+            <div class="modal-body">
+                <div id="image-group-preview-content" class="image-preview-grid">
+                    <!-- 图片缩略图将动态加载 -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 图片放大查看模态框 -->
+    <div class="modal-overlay" id="image-lightbox-modal" onclick="closeModal('image-lightbox-modal')">
+        <div class="lightbox-content" onclick="event.stopPropagation()">
+            <button class="modal-close lightbox-close" onclick="closeModal('image-lightbox-modal')">×</button>
+            <img id="lightbox-image" src="" alt="预览图片">
+        </div>
+    </div>
+
+    <script>
+        // btn-delete 确认功能
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelectorAll('.btn-delete').forEach(function(btn) {
+                btn.addEventListener('click', function(e) {
+                    var message = this.getAttribute('data-message') || '确定要删除吗？';
+                    if (!confirm(message)) {
+                        e.preventDefault();
+                    }
+                });
+            });
+        });
+
+        // 模态框控制
+        function openModal(modalId) {
+            document.getElementById(modalId).classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+        
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.remove('active');
+            document.body.style.overflow = '';
+            
+            // 如果关闭视频模态框，停止视频播放
+            if (modalId === 'video-preview-modal') {
+                const videoPlayer = document.getElementById('preview-video-player');
+                if (videoPlayer) {
+                    videoPlayer.pause();
+                    videoPlayer.src = '';
+                }
+            }
+        }
+        
+        // 点击模态框背景关闭
+        document.querySelectorAll('.modal-overlay').forEach(modal => {
+            modal.addEventListener('click', function(e) {
+                if (e.target === this) {
+                    closeModal(this.id);
+                }
+            });
+        });
+        
+        // ESC 键关闭模态框
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                document.querySelectorAll('.modal-overlay.active').forEach(modal => {
+                    closeModal(modal.id);
+                });
+            }
+        });
+
+        // 全选/取消全选
+        function toggleSelectAll(checkbox) {
+            const checkboxes = document.querySelectorAll('.video-checkbox:not(:disabled)');
+            checkboxes.forEach(cb => {
+                cb.checked = checkbox.checked;
+            });
+            updateSelection();
+        }
+
+        // 更新选择状态
+        function updateSelection() {
+            const checkboxes = document.querySelectorAll('.video-checkbox:not(:disabled)');
+            const selectedCount = document.querySelectorAll('.video-checkbox:not(:disabled):checked').length;
+            const batchBtn = document.getElementById('batch-delete-btn');
+            const countSpan = document.getElementById('selected-count');
+
+            // 更新已选数量
+            countSpan.textContent = selectedCount;
+
+            // 显示/隐藏批量删除按钮
+            if (selectedCount > 0) {
+                batchBtn.style.display = 'inline-flex';
+            } else {
+                batchBtn.style.display = 'none';
+            }
+
+            // 更新全选复选框状态
+            const selectAll = document.getElementById('select-all');
+            const totalCheckboxes = document.querySelectorAll('.video-checkbox:not(:disabled)');
+            selectAll.checked = selectedCount === totalCheckboxes.length && totalCheckboxes.length > 0;
+            selectAll.indeterminate = selectedCount > 0 && selectedCount < totalCheckboxes.length;
+        }
+
+        // 批量删除
+        function batchDelete() {
+            const checkboxes = document.querySelectorAll('.video-checkbox:not(:disabled):checked');
+            if (checkboxes.length === 0) {
+                alert('请先选择要删除的项目');
+                return;
+            }
+
+            const selectedItems = [];
+            checkboxes.forEach(cb => {
+                selectedItems.push({
+                    id: parseInt(cb.value),
+                    type: cb.dataset.type
+                });
+            });
+
+            const typeCount = {
+                video: selectedItems.filter(i => i.type === 'video').length,
+                image_group: selectedItems.filter(i => i.type === 'image_group').length
+            };
+
+            let message = `确定要删除选中的项目吗？\n\n`;
+            if (typeCount.video > 0) {
+                message += `- ${typeCount.video} 个视频\n`;
+            }
+            if (typeCount.image_group > 0) {
+                message += `- ${typeCount.image_group} 个图片组\n`;
+            }
+            message += `\n此操作不可恢复！`;
+
+            if (!confirm(message)) {
+                return;
+            }
+
+            // 显示加载状态
+            const batchBtn = document.getElementById('batch-delete-btn');
+            batchBtn.disabled = true;
+            batchBtn.innerHTML = '<span>⏳</span> 删除中...';
+
+            // 发送删除请求
+            fetch('/api/batch-delete', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ items: selectedItems })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert(`成功删除 ${data.deleted_count} 个项目`);
+                    window.location.reload();
+                } else {
+                    alert('删除失败: ' + data.message);
+                    batchBtn.disabled = false;
+                    batchBtn.innerHTML = '<span>🗑️</span> 批量删除 (<span id="selected-count">0</span>)';
+                    updateSelection();
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('删除失败，请重试');
+                batchBtn.disabled = false;
+                batchBtn.innerHTML = '<span>🗑️</span> 批量删除 (<span id="selected-count">0</span>)';
+                updateSelection();
+            });
+        }
+
+        // 预览媒体功能
+        function previewMedia(videoId, type, cloudinaryUrl) {
+            if (type === 'image_group') {
+                // 加载图片组
+                loadImageGroupPreview(videoId);
+            } else {
+                // 加载视频
+                loadVideoPreview(cloudinaryUrl);
+            }
+        }
+
+        // 加载视频预览
+        function loadVideoPreview(cloudinaryUrl) {
+            const videoPlayer = document.getElementById('preview-video-player');
+            videoPlayer.src = cloudinaryUrl;
+            openModal('video-preview-modal');
+        }
+
+        // 加载图片组预览
+        function loadImageGroupPreview(videoId) {
+            fetch(`/api/image-group/${videoId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        renderImageGroupPreview(data.images);
+                        openModal('image-group-preview-modal');
+                    } else {
+                        alert('加载图片失败: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('加载图片失败，请重试');
+                });
+        }
+
+        // 渲染图片组预览
+        function renderImageGroupPreview(images) {
+            const container = document.getElementById('image-group-preview-content');
+            container.innerHTML = images.map(img => `
+                <div class="image-preview-item" onclick="openLightbox('${img.cloudinary_url}')">
+                    <img src="${img.cloudinary_url}" alt="${img.original_filename}">
+                    <div class="image-preview-overlay">
+                        <span class="zoom-icon">🔍</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // 打开图片灯箱
+        function openLightbox(imageUrl) {
+            document.getElementById('lightbox-image').src = imageUrl;
+            openModal('image-lightbox-modal');
+        }
+    </script>
+</body>
+</html>
