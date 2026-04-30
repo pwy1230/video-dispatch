@@ -187,7 +187,8 @@ def api_upload_signature():
     import time
     
     timestamp = str(int(time.time()))
-    signature_string = timestamp + cloudinary_config['api_secret']
+    # 签名必须包含所有上传参数，按字母排序拼接
+    signature_string = 'folder=video_dispatch&timestamp=' + timestamp + cloudinary_config['api_secret']
     signature = hashlib.sha1(signature_string.encode()).hexdigest()
     
     return jsonify({
