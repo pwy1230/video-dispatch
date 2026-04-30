@@ -397,19 +397,48 @@
         <span>🔐</span> 管理入口
     </a>
 
-    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
     <script>
-        // 点击下载按钮后显示加载状态
-        document.getElementById('main-download-btn')?.addEventListener('click', function(e) {
-            const originalText = this.innerHTML;
-            this.innerHTML = '<span>⏳</span> 下载中...';
-            this.style.pointerEvents = 'none';
+        // 生成或获取设备唯一ID
+        function getDeviceId() {
+            let deviceId = localStorage.getItem('video_dispatch_device_id');
+            if (!deviceId) {
+                deviceId = 'dev_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                localStorage.setItem('video_dispatch_device_id', deviceId);
+            }
+            return deviceId;
+        }
+
+        const deviceId = getDeviceId();
+
+        // 给下载按钮加上设备ID参数
+        const downloadBtn = document.getElementById('main-download-btn');
+        if (downloadBtn) {
+            const originalHref = downloadBtn.getAttribute('href');
+            if (originalHref) {
+                const separator = originalHref.includes('?') ? '&' : '?';
+                downloadBtn.setAttribute('href', originalHref + separator + 'device_id=' + encodeURIComponent(deviceId));
+            }
             
-            // 1秒后恢复（如果没有跳转的话）
-            setTimeout(() => {
-                this.innerHTML = originalText;
-                this.style.pointerEvents = 'auto';
-            }, 5000);
+            // 点击后显示加载状态
+            downloadBtn.addEventListener('click', function(e) {
+                const originalText = this.innerHTML;
+                this.innerHTML = '<span>⏳</span> 下载中...';
+                this.style.pointerEvents = 'none';
+                
+                setTimeout(() => {
+                    this.innerHTML = originalText;
+                    this.style.pointerEvents = 'auto';
+                }, 5000);
+            });
+        }
+
+        // 重新下载按钮也加上设备ID
+        document.querySelectorAll('.re-download-btn').forEach(btn => {
+            const originalHref = btn.getAttribute('href');
+            if (originalHref) {
+                const separator = originalHref.includes('?') ? '&' : '?';
+                btn.setAttribute('href', originalHref + separator + 'device_id=' + encodeURIComponent(deviceId));
+            }
         });
     </script>
 </body>

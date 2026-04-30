@@ -100,8 +100,8 @@ def login_required(role=None):
 
 
 def get_client_identifier():
-    """获取客户端标识"""
-    device_id = request.headers.get('X-Device-ID') or request.headers.get('X-Client-ID')
+    """获取客户端标识 - 优先使用设备ID，其次IP"""
+    device_id = request.args.get('device_id') or request.headers.get('X-Device-ID') or request.headers.get('X-Client-ID') or request.form.get('device_id')
     if device_id:
         return f"device_{device_id}"
     
