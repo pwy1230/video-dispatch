@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>图片组 - 视频派发系统</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        /* 图片组专用样式 */
+        .image-group-page {
+            min-height: 100vh;
+            background: linear-gradient(135deg, var(--bg-dark) 0%, #1a1f35 50%, #0f172a 100%);
+            padding: 20px;
+            padding-bottom: 100px;
+        }
+        
+        .image-group-header {
+            text-align: center;
+            padding: 20px 0;
+            margin-bottom: 20px;
+        }
+        
+        .image-group-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+        }
+        
+        .image-group-subtitle {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+        
+        .images-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .image-card {
+            background: var(--bg-card);
+            border-radius: 16px;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        
+        .image-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+        }
+        
+        .image-wrapper {
+            position: relative;
+            width: 100%;
+            padding-top: 100%;
+            overflow: hidden;
+            background: #000;
+        }
+        
+        .image-wrapper img {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            cursor: pointer;
+        }
+        
+        .image-info {
+            padding: 16px;
+            text-align: center;
+        }
+        
+        .image-name {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .save-hint {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            padding: 6px 12px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 20px;
+            display: inline-block;
+        }
+        
+        .save-hint.mobile {
+            display: none;
+        }
+        
+        @media (max-width: 768px) {
+            .save-hint.desktop {
+                display: none;
+            }
+            .save-hint.mobile {
+                display: inline-block;
+            }
+        }
+        
+        /* 底部返回按钮 */
+        .bottom-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 16px 20px;
+            background: rgba(30, 41, 59, 0.95);
+            backdrop-filter: blur(10px);
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+            z-index: 100;
+        }
+        
+        .back-btn {
+            display: block;
+            width: 100%;
+            padding: 14px 24px;
+            font-size: 1rem;
+            font-weight: 600;
+            border-radius: 12px;
+            background: linear-gradient(135deg, var(--secondary) 0%, #475569 100%);
+            color: white;
+            border: none;
+            cursor: pointer;
+            text-decoration: none;
+            text-align: center;
+            transition: all 0.3s;
+        }
+        
+        .back-btn:hover {
+            background: linear-gradient(135deg, #475569 0%, #64748b 100%);
+            transform: translateY(-2px);
+        }
+        
+        /* 图片预览弹窗 */
+        .preview-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.95);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .preview-modal.active {
+            display: flex;
+        }
+        
+        .preview-modal img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+        
+        .preview-close {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .preview-close:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+        
+        .preview-download {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 24px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .preview-download:hover {
+            background: var(--primary-dark);
+        }
+        
+        /* 移动端优化 */
+        @media (max-width: 480px) {
+            .images-container {
+                grid-template-columns: 1fr;
+                gap: 16px;
+            }
+            
+            .image-group-title {
+                font-size: 1.3rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="image-group-page">
+        <!-- 顶部标题 -->
+        <div class="image-group-header">
+            <h1 class="image-group-title">📷 {{ video.original_filename or '图片组' }}</h1>
+            <p class="image-group-subtitle">共 {{ images|length }} 张图片 - 点击图片可放大查看</p>
+        </div>
+        
+        <!-- 图片列表 -->
+        <div class="images-container">
+            {% for image in images %}
+            <div class="image-card">
+                <div class="image-wrapper">
+                    <img src="{{ image.cloudinary_url }}" 
+                         alt="{{ image.original_filename }}"
+                         onclick="openPreview('{{ image.cloudinary_url }}', '{{ image.original_filename }}')"
+                         loading="lazy">
+                </div>
+                <div class="image-info">
+                    <p class="image-name" title="{{ image.original_filename }}">{{ image.original_filename }}</p>
+                    <span class="save-hint desktop">💡 右键点击图片 → 另存为</span>
+                    <span class="save-hint mobile">💡 长按图片 → 保存到相册</span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    
+    <!-- 底部返回按钮 -->
+    <div class="bottom-bar">
+        <a href="{{ url_for('download_page') }}" class="back-btn">
+            ← 返回首页
+        </a>
+    </div>
+    
+    <!-- 图片预览弹窗 -->
+    <div class="preview-modal" id="preview-modal">
+        <button class="preview-close" onclick="closePreview()">×</button>
+        <img id="preview-image" src="" alt="预览">
+        <a id="preview-download" class="preview-download" download>
+            ⬇ 保存图片
+        </a>
+    </div>
+    
+    <script>
+        // 图片预览功能
+        function openPreview(url, filename) {
+            const modal = document.getElementById('preview-modal');
+            const img = document.getElementById('preview-image');
+            const downloadBtn = document.getElementById('preview-download');
+            
+            img.src = url;
+            downloadBtn.href = url;
+            downloadBtn.download = filename;
+            modal.classList.add('active');
+            
+            // 禁止滚动
+            document.body.style.overflow = 'hidden';
+        }
+        
+        function closePreview() {
+            const modal = document.getElementById('preview-modal');
+            modal.classList.remove('active');
+            document.body.style.overflow = '';
+        }
+        
+        // 点击弹窗背景关闭
+        document.getElementById('preview-modal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closePreview();
+            }
+        });
+        
+        // ESC 键关闭弹窗
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closePreview();
+            }
+        });
+    </script>
+</body>
+</html>

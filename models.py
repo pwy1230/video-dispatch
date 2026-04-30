@@ -49,6 +49,7 @@ def init_db():
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS videos (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            type TEXT DEFAULT 'video' CHECK(type IN ('video', 'image_group')),
             original_filename TEXT NOT NULL,
             stored_filename TEXT NOT NULL,
             cloudinary_public_id TEXT,
@@ -58,6 +59,19 @@ def init_db():
             uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             is_assigned BOOLEAN DEFAULT 0,
             FOREIGN KEY (uploader_id) REFERENCES users(id)
+        )
+    ''')
+    
+    # 图片组项目表
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS image_group_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            video_id INTEGER NOT NULL,
+            cloudinary_url TEXT NOT NULL,
+            cloudinary_public_id TEXT,
+            original_filename TEXT NOT NULL,
+            sort_order INTEGER DEFAULT 0,
+            FOREIGN KEY (video_id) REFERENCES videos(id) ON DELETE CASCADE
         )
     ''')
     
@@ -86,6 +100,25 @@ def init_db():
     if 'cloudinary_public_id' not in video_columns:
         cursor.execute('ALTER TABLE videos ADD COLUMN cloudinary_public_id TEXT')
         cursor.execute('ALTER TABLE videos ADD COLUMN cloudinary_url TEXT')
+    
+    # 添加 type 字段（如果不存在）
+    if 'type' not in video_columns:
+        cursor.execute('ALTER TABLE videos ADD COLUMN type TEXT DEFAULT "video"')
+    
+    # 检查 image_group_items 表是否存在，不存在则创建
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='image_group_items'")
+    if not cursor.fetchone():
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS image_group_items (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                video_id INTEGER NOT NULL,
+                cloudinary_url TEXT NOT NULL,
+                cloudinary_public_id TEXT,
+                original_filename TEXT NOT NULL,
+                sort_order INTEGER DEFAULT 0,
+                FOREIGN KEY (video_id) REFERENCES videos(id) ON DELETE CASCADE
+            )
+        ''')
     
     # 检查默认管理员是否存在
     cursor.execute('SELECT COUNT(*) FROM users WHERE username = ?', ('admin',))
@@ -177,15 +210,15 @@ def delete_user(user_id):
 
 
 def add_video(original_filename, stored_filename, file_size, uploader_id, 
-               cloudinary_public_id=None, cloudinary_url=None):
+               cloudinary_public_id=None, cloudinary_url=None, video_type='video'):
     """添加视频到视频池"""
     conn = get_db()
     cursor = conn.cursor()
     
     cursor.execute(
-        '''INSERT INTO videos (original_filename, stored_filename, file_size, uploader_id,
-           cloudinary_public_id, cloudinary_url) VALUES (?, ?, ?, ?, ?, ?)''',
-        (original_filename, stored_filename, file_size, uploader_id,
+        '''INSERT INTO videos (type, original_filename, stored_filename, file_size, uploader_id,
+           cloudinary_public_id, cloudinary_url) VALUES (?, ?, ?, ?, ?, ?, ?)''',
+        (video_type, original_filename, stored_filename, file_size, uploader_id,
          cloudinary_public_id, cloudinary_url)
     )
     video_id = cursor.lastrowid
@@ -195,13 +228,86 @@ def add_video(original_filename, stored_filename, file_size, uploader_id,
     return video_id
 
 
+def add_image_group(group_name, uploader_id, images):
+    """创建图片组并添加所有图片"""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    try:
+        # 创建图片组记录
+        cursor.execute(
+            '''INSERT INTO videos (type, original_filename, stored_filename, file_size, uploader_id)
+               VALUES (?, ?, ?, ?, ?)''',
+            ('image_group', group_name, '', 0, uploader_id)
+        )
+        video_id = cursor.lastrowid
+        
+        # 添加所有图片
+        for i, img in enumerate(images):
+            cursor.execute(
+                '''INSERT INTO image_group_items (video_id, cloudinary_url, cloudinary_public_id, original_filename, sort_order)
+                   VALUES (?, ?, ?, ?, ?)''',
+                (video_id, img['cloudinary_url'], img.get('cloudinary_public_id', ''), 
+                 img['original_filename'], i)
+            )
+        
+        conn.commit()
+        conn.close()
+        return video_id
+    except Exception as e:
+        conn.rollback()
+        conn.close()
+        raise e
+
+
+def get_image_group_items(video_id):
+    """获取图片组的所有图片"""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+        SELECT id, cloudinary_url, cloudinary_public_id, original_filename, sort_order
+        FROM image_group_items
+        WHERE video_id = ?
+        ORDER BY sort_order
+    ''', (video_id,))
+    
+    items = [dict_from_row(row) for row in cursor.fetchall()]
+    conn.close()
+    return items
+
+
+def delete_image_group(video_id):
+    """删除图片组及其所有图片"""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    try:
+        # 获取所有图片的 cloudinary_public_id
+        cursor.execute('SELECT cloudinary_public_id FROM image_group_items WHERE video_id = ?', (video_id,))
+        public_ids = [row['cloudinary_public_id'] for row in cursor.fetchall() if row['cloudinary_public_id']]
+        
+        # 删除数据库记录（级联删除 image_group_items）
+        cursor.execute('DELETE FROM videos WHERE id = ? AND is_assigned = 0 AND type = ?', (video_id, 'image_group'))
+        deleted = cursor.rowcount > 0
+        
+        conn.commit()
+        conn.close()
+        
+        return deleted, public_ids
+    except Exception as e:
+        conn.rollback()
+        conn.close()
+        raise e
+
+
 def get_available_videos():
     """获取所有可用的（未被下载的）视频"""
     conn = get_db()
     cursor = conn.cursor()
     
     cursor.execute('''
-        SELECT v.id, v.original_filename, v.file_size, v.uploaded_at, 
+        SELECT v.id, v.type, v.original_filename, v.file_size, v.uploaded_at, 
                v.cloudinary_public_id, v.cloudinary_url,
                u.username as uploader_name
         FROM videos v
@@ -221,7 +327,7 @@ def get_all_videos():
     cursor = conn.cursor()
     
     cursor.execute('''
-        SELECT v.id, v.original_filename, v.file_size, v.uploaded_at, v.is_assigned,
+        SELECT v.id, v.type, v.original_filename, v.file_size, v.uploaded_at, v.is_assigned,
                v.cloudinary_public_id, v.cloudinary_url,
                u.username as uploader_name
         FROM videos v
@@ -364,13 +470,21 @@ def get_stats():
     conn = get_db()
     cursor = conn.cursor()
     
-    # 视频池数量
-    cursor.execute('SELECT COUNT(*) FROM videos WHERE is_assigned = 0')
-    available = cursor.fetchone()[0]
+    # 待分发视频数量（不包含图片组）
+    cursor.execute('SELECT COUNT(*) FROM videos WHERE is_assigned = 0 AND type = "video"')
+    available_videos = cursor.fetchone()[0]
     
-    # 已分配数量
-    cursor.execute('SELECT COUNT(*) FROM videos WHERE is_assigned = 1')
-    assigned = cursor.fetchone()[0]
+    # 待分发图片组数量
+    cursor.execute('SELECT COUNT(*) FROM videos WHERE is_assigned = 0 AND type = "image_group"')
+    available_image_groups = cursor.fetchone()[0]
+    
+    # 已分发视频数量
+    cursor.execute('SELECT COUNT(*) FROM videos WHERE is_assigned = 1 AND type = "video"')
+    assigned_videos = cursor.fetchone()[0]
+    
+    # 已分发图片组数量
+    cursor.execute('SELECT COUNT(*) FROM videos WHERE is_assigned = 1 AND type = "image_group"')
+    assigned_image_groups = cursor.fetchone()[0]
     
     # 用户数量
     cursor.execute('SELECT role, COUNT(*) FROM users GROUP BY role')
@@ -385,9 +499,13 @@ def get_stats():
     conn.close()
     
     return {
-        'available_videos': available,
-        'assigned_videos': assigned,
-        'total_videos': available + assigned,
+        'available_videos': available_videos,
+        'available_image_groups': available_image_groups,
+        'available_total': available_videos + available_image_groups,
+        'assigned_videos': assigned_videos,
+        'assigned_image_groups': assigned_image_groups,
+        'total_videos': available_videos + assigned_videos,
+        'total_image_groups': available_image_groups + assigned_image_groups,
         'total_users': sum(role_counts.values()),
         'admin_count': role_counts.get('admin', 0),
         'uploader_count': role_counts.get('uploader', 0),

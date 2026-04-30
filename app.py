@@ -22,7 +22,8 @@ from models import (
     get_all_users, delete_user, get_stats,
     add_video, get_available_videos, get_all_videos, 
     get_video_by_id, assign_random_video, delete_video,
-    get_download_records, check_daily_limit
+    get_download_records, check_daily_limit,
+    add_image_group, get_image_group_items, delete_image_group
 )
 
 # ============== Flask 应用配置 ==============
@@ -179,16 +180,28 @@ def api_upload_signature():
     """
     API: 获取 Cloudinary 上传签名
     前端直传到 Cloudinary 时需要此签名进行身份验证
+    支持 type=video 或 type=image
     """
     if not USE_CLOUDINARY:
         return jsonify({'success': False, 'message': 'Cloudinary 未配置'}), 400
+    
+    upload_type = request.args.get('type', 'video')
     
     import hashlib
     import time
     
     timestamp = str(int(time.time()))
-    # 签名必须包含所有上传参数，按字母排序拼接
-    signature_string = 'folder=video_dispatch&timestamp=' + timestamp + cloudinary_config['api_secret']
+    
+    # 根据类型设置不同的 folder 和 resource_type
+    if upload_type == 'image':
+        folder = 'image_dispatch'
+        resource_type = 'image'
+        signature_string = f'folder={folder}&timestamp={timestamp}{cloudinary_config["api_secret"]}'
+    else:
+        folder = 'video_dispatch'
+        resource_type = 'video'
+        signature_string = f'folder={folder}&timestamp={timestamp}{cloudinary_config["api_secret"]}'
+    
     signature = hashlib.sha1(signature_string.encode()).hexdigest()
     
     return jsonify({
@@ -196,7 +209,9 @@ def api_upload_signature():
         'cloud_name': cloudinary_config['cloud_name'],
         'api_key': cloudinary_config['api_key'],
         'timestamp': timestamp,
-        'signature': signature
+        'signature': signature,
+        'folder': folder,
+        'resource_type': resource_type
     })
 
 
@@ -206,39 +221,65 @@ def api_save_upload():
     """
     API: 保存前端直传成功后的视频记录
     前端直传到 Cloudinary 成功后调用此接口，将视频信息存入数据库
+    支持普通视频上传和图片组上传
     """
     data = request.get_json()
     
     if not data:
         return jsonify({'success': False, 'message': '缺少参数'}), 400
     
-    cloudinary_url = data.get('cloudinary_url')
-    cloudinary_public_id = data.get('cloudinary_public_id')
-    original_filename = data.get('original_filename')
-    file_size = data.get('file_size', 0)
+    upload_type = data.get('type', 'video')
     
-    if not cloudinary_url or not original_filename:
-        return jsonify({'success': False, 'message': '缺少必要参数'}), 400
-    
-    # 生成存储文件名
-    import uuid as uuid_module
-    ext = original_filename.rsplit('.', 1)[1].lower() if '.' in original_filename else 'mp4'
-    stored_filename = f"{uuid_module.uuid4().hex}.{ext}"
-    
-    # 保存到数据库
-    user = get_current_user()
-    add_video(
-        original_filename, stored_filename, file_size, user['id'],
-        cloudinary_public_id=cloudinary_public_id,
-        cloudinary_url=cloudinary_url
-    )
-    
-    print(f"✓ 视频记录已保存: {original_filename}")
-    
-    return jsonify({
-        'success': True,
-        'message': '视频记录已保存'
-    })
+    if upload_type == 'image_group':
+        # 图片组上传
+        images = data.get('images', [])
+        group_name = data.get('group_name', f'图片组_{datetime.now().strftime("%Y%m%d%H%M%S")}')
+        
+        if not images or len(images) < 1:
+            return jsonify({'success': False, 'message': '图片组至少需要1张图片'}), 400
+        
+        try:
+            user = get_current_user()
+            video_id = add_image_group(group_name, user['id'], images)
+            print(f"✓ 图片组记录已保存: {group_name} ({len(images)}张图片)")
+            
+            return jsonify({
+                'success': True,
+                'message': f'图片组已保存 ({len(images)}张图片)',
+                'video_id': video_id
+            })
+        except Exception as e:
+            return jsonify({'success': False, 'message': f'保存失败: {str(e)}'}), 500
+    else:
+        # 普通视频上传
+        cloudinary_url = data.get('cloudinary_url')
+        cloudinary_public_id = data.get('cloudinary_public_id')
+        original_filename = data.get('original_filename')
+        file_size = data.get('file_size', 0)
+        
+        if not cloudinary_url or not original_filename:
+            return jsonify({'success': False, 'message': '缺少必要参数'}), 400
+        
+        # 生成存储文件名
+        import uuid as uuid_module
+        ext = original_filename.rsplit('.', 1)[1].lower() if '.' in original_filename else 'mp4'
+        stored_filename = f"{uuid_module.uuid4().hex}.{ext}"
+        
+        # 保存到数据库
+        user = get_current_user()
+        add_video(
+            original_filename, stored_filename, file_size, user['id'],
+            cloudinary_public_id=cloudinary_public_id,
+            cloudinary_url=cloudinary_url,
+            video_type='video'
+        )
+        
+        print(f"✓ 视频记录已保存: {original_filename}")
+        
+        return jsonify({
+            'success': True,
+            'message': '视频记录已保存'
+        })
 
 
 # ============== 启动时初始化 ==============
@@ -323,6 +364,7 @@ def download_action():
     """
     执行随机下载
     分配视频后直接重定向到 Cloudinary 下载链接
+    如果是图片组则跳转到图片组查看页面
     """
     client_id = get_client_identifier()
     device_info = get_device_info()
@@ -336,6 +378,11 @@ def download_action():
     video = assign_random_video(client_id, device_info, user_id)
     
     if video:
+        # 检查是否是图片组
+        if video.get('type') == 'image_group':
+            flash(f'恭喜！获得一组图片 "{video["original_filename"]}"', 'success')
+            return redirect(url_for('view_image_group', video_id=video['id']))
+        
         flash(f'下载成功！视频 "{video["original_filename"]}" 已从池子移除', 'success')
         
         # 直接重定向到 Cloudinary 下载链接，节省 CPU 秒数
@@ -498,6 +545,87 @@ def admin_delete_video(video_id):
             return redirect(url_for('admin_dashboard'))
     
     flash('删除失败或视频已被下载', 'error')
+    return redirect(url_for('admin_dashboard'))
+
+
+# ============== 图片组下载页面（员工端） ==============
+
+@app.route('/image-group/<int:video_id>')
+def view_image_group(video_id):
+    """查看图片组页面"""
+    video = get_video_by_id(video_id)
+    if not video or video.get('type') != 'image_group':
+        flash('图片组不存在', 'error')
+        return redirect(url_for('download_page'))
+    
+    # 如果图片组未被分配（通过链接直接访问），则标记为已分配
+    client_id = get_client_identifier()
+    device_info = get_device_info()
+    user_id = session.get('user_id') if is_logged_in() else None
+    
+    if not video.get('is_assigned'):
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute('UPDATE videos SET is_assigned = 1 WHERE id = ?', (video_id,))
+        cursor.execute(
+            'INSERT INTO download_records (video_id, user_id, client_identifier, device_info) VALUES (?, ?, ?, ?)',
+            (video_id, user_id, client_id, device_info)
+        )
+        conn.commit()
+        conn.close()
+    
+    images = get_image_group_items(video_id)
+    
+    return render_template('image_group.html', 
+                           video=video, 
+                           images=images,
+                           can_download=True)
+
+
+@app.route('/api/image-group/<int:video_id>')
+def api_get_image_group(video_id):
+    """API: 获取图片组信息"""
+    video = get_video_by_id(video_id)
+    if not video or video.get('type') != 'image_group':
+        return jsonify({'success': False, 'message': '图片组不存在'}), 404
+    
+    images = get_image_group_items(video_id)
+    
+    return jsonify({
+        'success': True,
+        'video': video,
+        'images': images
+    })
+
+
+# ============== 图片组管理（管理员端） ==============
+
+@app.route('/admin/delete_image_group/<int:video_id>')
+@login_required(role='admin')
+def admin_delete_image_group(video_id):
+    """删除图片组"""
+    video = get_video_by_id(video_id)
+    if not video or video.get('type') != 'image_group':
+        flash('图片组不存在', 'error')
+        return redirect(url_for('admin_dashboard'))
+    
+    # 删除 Cloudinary 上的图片
+    deleted, public_ids = delete_image_group(video_id)
+    
+    if deleted:
+        # 删除 Cloudinary 上的文件
+        if USE_CLOUDINARY:
+            for public_id in public_ids:
+                try:
+                    cloudinary.uploader.destroy(public_id, resource_type='image')
+                    print(f"✓ 已删除 Cloudinary 上的图片: {public_id}")
+                except Exception as e:
+                    print(f"⚠ 删除 Cloudinary 图片失败: {e}")
+        
+        flash('图片组已删除', 'success')
+    else:
+        flash('删除失败或图片组已被下载', 'error')
+    
     return redirect(url_for('admin_dashboard'))
 
 

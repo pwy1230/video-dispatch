@@ -183,17 +183,62 @@
                 </div>
             </div>
 
+            <!-- 图片组上传区域 -->
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h2 class="card-title">🖼️ 上传图片组</h2>
+                    <span class="text-muted">3-5张图片为一组，随机分配给员工（直传 Cloudinary）</span>
+                </div>
+                
+                <!-- 图片组名称 -->
+                <div class="form-group" style="margin-bottom: 15px;">
+                    <label class="form-label">图片组名称</label>
+                    <input type="text" id="image-group-name" class="form-input" 
+                           placeholder="例如：产品展示_001（留空自动生成）">
+                </div>
+                
+                <form id="image-group-form">
+                    <div class="upload-zone" id="image-upload-zone" style="border: 2px dashed #60a5fa;">
+                        <div class="upload-zone-icon">🖼️</div>
+                        <div class="upload-zone-text">点击或拖拽图片到此处上传</div>
+                        <div class="upload-zone-hint">必须选择 3-5 张图片</div>
+                        <input type="file" name="images" class="upload-input" id="image-input"
+                               accept="image/*" multiple>
+                    </div>
+                </form>
+                
+                <!-- 已选图片预览 -->
+                <div id="image-preview-area" class="selected-files" style="display: none; margin-top: 15px;">
+                    <h4>已选择的图片（<span id="image-count">0</span>/3-5张）：</h4>
+                    <div id="image-thumbnails" style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px;"></div>
+                    <button type="button" class="btn btn-primary mt-2" id="start-image-upload-btn" disabled>开始上传</button>
+                </div>
+                
+                <!-- 图片上传进度区域 -->
+                <div id="image-upload-progress-area" class="upload-progress-area" style="display: none;">
+                    <div class="progress-header">
+                        <span id="image-progress-text">正在上传 0/0</span>
+                        <span id="image-progress-percent">0%</span>
+                    </div>
+                    <div class="progress-bar-wrapper">
+                        <div class="progress-bar" id="image-progress-bar"></div>
+                    </div>
+                    <div id="image-upload-result" class="upload-result"></div>
+                </div>
+            </div>
+
             <!-- 已上传视频列表 -->
             <div class="card mt-3">
                 <div class="card-header">
-                    <h2 class="card-title">📋 视频池 - 待分发视频</h2>
-                    <span class="text-muted">共 {{ videos|length }} 个视频</span>
+                    <h2 class="card-title">📋 视频池 - 待分发内容</h2>
+                    <span class="text-muted">共 {{ videos|length }} 个视频/图片组</span>
                 </div>
                 
                 <div class="table-wrapper">
                     <table class="table">
                         <thead>
                             <tr>
+                                <th>类型</th>
                                 <th>文件名</th>
                                 <th>大小</th>
                                 <th>上传时间</th>
@@ -204,6 +249,13 @@
                         <tbody>
                             {% for video in videos %}
                             <tr>
+                                <td>
+                                    {% if video.type == 'image_group' %}
+                                    <span class="badge" style="background: #8b5cf6;">🖼️ 图片组</span>
+                                    {% else %}
+                                    <span class="badge" style="background: var(--primary);">🎬 视频</span>
+                                    {% endif %}
+                                </td>
                                 <td class="video-name" title="{{ video.original_filename }}">
                                     {{ video.original_filename }}
                                 </td>
@@ -216,9 +268,9 @@
                             </tr>
                             {% else %}
                             <tr>
-                                <td colspan="5" class="text-center text-muted">
-                                    <p style="padding: 40px 0;">🎬 暂无待分发的视频</p>
-                                    <p>上传第一个视频开始吧！</p>
+                                <td colspan="6" class="text-center text-muted">
+                                    <p style="padding: 40px 0;">🎬 暂无待分发的内容</p>
+                                    <p>上传第一个视频或图片组开始吧！</p>
                                 </td>
                             </tr>
                             {% endfor %}
@@ -579,6 +631,351 @@
             }, 2000);
             
             console.log('[DEBUG] 上传流程完成');
+        });
+        
+        // ==================== 图片组上传逻辑 ====================
+        
+        const imageInput = document.getElementById('image-input');
+        const imageUploadZone = document.getElementById('image-upload-zone');
+        const imagePreviewArea = document.getElementById('image-preview-area');
+        const imageThumbnails = document.getElementById('image-thumbnails');
+        const imageCount = document.getElementById('image-count');
+        const startImageUploadBtn = document.getElementById('start-image-upload-btn');
+        const imageUploadProgressArea = document.getElementById('image-upload-progress-area');
+        const imageProgressText = document.getElementById('image-progress-text');
+        const imageProgressPercent = document.getElementById('image-progress-percent');
+        const imageProgressBar = document.getElementById('image-progress-bar');
+        const imageUploadResult = document.getElementById('image-upload-result');
+        const imageGroupNameInput = document.getElementById('image-group-name');
+        
+        let selectedImages = [];
+        let imageCloudinaryConfig = null;
+        
+        // 图片选择处理
+        imageInput.addEventListener('change', function(e) {
+            console.log('[DEBUG] 图片选择事件触发');
+            const files = Array.from(e.target.files).filter(f => 
+                f.type.startsWith('image/')
+            );
+            console.log('[DEBUG] 选中图片数:', files.length);
+            
+            // 限制 3-5 张
+            if (files.length > 5) {
+                alert('最多只能选择 5 张图片');
+                imageInput.value = '';
+                return;
+            }
+            
+            selectedImages = files;
+            
+            if (files.length > 0) {
+                // 显示预览
+                imagePreviewArea.style.display = 'block';
+                imageCount.textContent = files.length;
+                
+                // 生成缩略图
+                imageThumbnails.innerHTML = '';
+                files.forEach((file, index) => {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        const div = document.createElement('div');
+                        div.style.cssText = 'width: 80px; height: 80px; border-radius: 8px; overflow: hidden; border: 2px solid #60a5fa;';
+                        div.innerHTML = `<img src="${e.target.result}" style="width: 100%; height: 100%; object-fit: cover;">`;
+                        imageThumbnails.appendChild(div);
+                    };
+                    reader.readAsDataURL(file);
+                });
+                
+                // 根据数量启用/禁用上传按钮
+                if (files.length >= 3) {
+                    startImageUploadBtn.disabled = false;
+                } else {
+                    startImageUploadBtn.disabled = true;
+                }
+            } else {
+                imagePreviewArea.style.display = 'none';
+            }
+        });
+        
+        // 点击上传区域触发文件选择
+        imageUploadZone.addEventListener('click', function(e) {
+            e.preventDefault();
+            imageInput.click();
+        });
+        
+        // 阻止文件选择框的点击冒泡
+        imageInput.addEventListener('click', function(e) {
+            e.stopPropagation();
+        });
+        
+        // 拖拽上传支持
+        imageUploadZone.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            imageUploadZone.classList.add('dragover');
+        });
+        
+        imageUploadZone.addEventListener('dragleave', function(e) {
+            e.preventDefault();
+            imageUploadZone.classList.remove('dragover');
+        });
+        
+        imageUploadZone.addEventListener('drop', function(e) {
+            e.preventDefault();
+            imageUploadZone.classList.remove('dragover');
+            
+            const files = Array.from(e.dataTransfer.files).filter(f => 
+                f.type.startsWith('image/')
+            );
+            
+            if (files.length > 5) {
+                alert('最多只能选择 5 张图片');
+                return;
+            }
+            
+            // 创建新的 FileList
+            const dt = new DataTransfer();
+            files.forEach(f => dt.items.add(f));
+            imageInput.files = dt.files;
+            imageInput.dispatchEvent(new Event('change'));
+        });
+        
+        // 获取图片上传签名
+        async function getImageCloudinarySignature() {
+            try {
+                const response = await fetch('{{ url_for("api_upload_signature") }}?type=image');
+                const result = await response.json();
+                if (result.success) {
+                    imageCloudinaryConfig = result;
+                    return true;
+                } else {
+                    alert('获取上传配置失败: ' + result.message);
+                    return false;
+                }
+            } catch (error) {
+                alert('获取上传配置失败: ' + error.message);
+                return false;
+            }
+        }
+        
+        // 上传图片到 Cloudinary
+        async function uploadImageToCloudinary(file, index) {
+            const timestamp = imageCloudinaryConfig.timestamp;
+            const signature = imageCloudinaryConfig.signature;
+            const cloudName = imageCloudinaryConfig.cloud_name;
+            const apiKey = imageCloudinaryConfig.api_key;
+            const folder = imageCloudinaryConfig.folder || 'image_dispatch';
+            const resourceType = imageCloudinaryConfig.resource_type || 'image';
+
+            return new Promise((resolve, reject) => {
+                const xhr = new XMLHttpRequest();
+                const formData = new FormData();
+                
+                formData.append('file', file);
+                formData.append('api_key', apiKey);
+                formData.append('timestamp', timestamp);
+                formData.append('signature', signature);
+                formData.append('folder', folder);
+                formData.append('resource_type', resourceType);
+
+                xhr.open('POST', `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, true);
+
+                xhr.upload.onprogress = function(e) {
+                    if (e.lengthComputable) {
+                        const percent = Math.round((e.loaded / e.total) * 100);
+                        const item = document.getElementById(`image-upload-item-${index}`);
+                        if (item) {
+                            item.innerHTML = `<span>⏳</span> ${file.name} - 上传中 ${percent}%`;
+                        }
+                    }
+                };
+
+                xhr.onload = function() {
+                    if (xhr.status === 200) {
+                        try {
+                            const result = JSON.parse(xhr.responseText);
+                            resolve({
+                                success: true,
+                                cloudinary_url: result.secure_url,
+                                cloudinary_public_id: result.public_id,
+                                original_filename: file.name,
+                                file_size: file.size
+                            });
+                        } catch (e) {
+                            resolve({
+                                success: false,
+                                message: '解析响应失败'
+                            });
+                        }
+                    } else {
+                        try {
+                            const error = JSON.parse(xhr.responseText);
+                            resolve({
+                                success: false,
+                                message: error.error?.message || '上传失败'
+                            });
+                        } catch (e) {
+                            resolve({
+                                success: false,
+                                message: '上传失败 (HTTP ' + xhr.status + ')'
+                            });
+                        }
+                    }
+                };
+
+                xhr.onerror = function() {
+                    resolve({
+                        success: false,
+                        message: '网络错误'
+                    });
+                };
+
+                xhr.send(formData);
+            });
+        }
+        
+        // 开始上传图片组
+        startImageUploadBtn.addEventListener('click', async function() {
+            console.log('[DEBUG] 图片组上传按钮点击');
+            if (selectedImages.length < 3 || selectedImages.length > 5) {
+                alert('图片组需要 3-5 张图片');
+                return;
+            }
+            
+            startImageUploadBtn.disabled = true;
+            startImageUploadBtn.textContent = '上传中...';
+            
+            imagePreviewArea.style.display = 'none';
+            imageUploadProgressArea.style.display = 'block';
+            imageUploadResult.innerHTML = '';
+            
+            // 显示所有图片为上传中状态
+            selectedImages.forEach((file, index) => {
+                const item = document.createElement('div');
+                item.className = 'upload-item uploading';
+                item.id = `image-upload-item-${index}`;
+                item.innerHTML = `<span>⏳</span> ${file.name} - 准备上传...`;
+                imageUploadResult.appendChild(item);
+            });
+            
+            const total = selectedImages.length;
+            let completed = 0;
+            let successCount = 0;
+            let errorCount = 0;
+            const uploadedImages = [];
+            
+            // 先获取签名
+            const gotSignature = await getImageCloudinarySignature();
+            if (!gotSignature) {
+                startImageUploadBtn.disabled = false;
+                startImageUploadBtn.textContent = '开始上传';
+                return;
+            }
+
+            // 逐个上传图片
+            for (let i = 0; i < selectedImages.length; i++) {
+                const file = selectedImages[i];
+                const item = document.getElementById(`image-upload-item-${i}`);
+                
+                if (item) {
+                    item.className = 'upload-item uploading';
+                    item.innerHTML = `<span>⏳</span> ${file.name} - 上传中...`;
+                }
+                
+                // 直传到 Cloudinary
+                const cloudinaryResult = await uploadImageToCloudinary(file, i);
+                
+                if (cloudinaryResult.success) {
+                    uploadedImages.push({
+                        cloudinary_url: cloudinaryResult.cloudinary_url,
+                        cloudinary_public_id: cloudinaryResult.cloudinary_public_id,
+                        original_filename: cloudinaryResult.original_filename
+                    });
+                    
+                    if (item) {
+                        item.className = 'upload-item success';
+                        item.innerHTML = `<span>✅</span> ${file.name} - 上传成功`;
+                    }
+                    successCount++;
+                } else {
+                    if (item) {
+                        item.className = 'upload-item error';
+                        item.innerHTML = `<span>❌</span> ${file.name} - ${cloudinaryResult.message}`;
+                    }
+                    errorCount++;
+                }
+                
+                completed++;
+                const percent = Math.round((completed / total) * 100);
+                imageProgressText.textContent = `正在上传 ${completed}/${total}`;
+                imageProgressPercent.textContent = `${percent}%`;
+                imageProgressBar.style.width = `${percent}%`;
+            }
+            
+            // 如果有成功上传的图片，保存到服务器
+            if (uploadedImages.length > 0) {
+                const groupName = imageGroupNameInput.value.trim() || `图片组_${Date.now()}`;
+                
+                try {
+                    const response = await fetch('{{ url_for("api_save_upload") }}', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            type: 'image_group',
+                            group_name: groupName,
+                            images: uploadedImages
+                        })
+                    });
+                    const saveResult = await response.json();
+                    
+                    if (saveResult.success) {
+                        // 显示成功消息
+                        const summary = document.createElement('div');
+                        summary.style.marginTop = '15px';
+                        summary.style.padding = '10px';
+                        summary.style.borderRadius = '6px';
+                        summary.style.fontWeight = '500';
+                        summary.style.background = '#e8f5e9';
+                        summary.style.color = '#2e7d32';
+                        summary.innerHTML = `🎉 图片组上传完成！${uploadedImages.length} 张图片`;
+                        imageUploadResult.appendChild(summary);
+                    } else {
+                        const errorDiv = document.createElement('div');
+                        errorDiv.style.marginTop = '15px';
+                        errorDiv.style.padding = '10px';
+                        errorDiv.style.borderRadius = '6px';
+                        errorDiv.style.background = '#ffebee';
+                        errorDiv.style.color = '#c62828';
+                        errorDiv.innerHTML = `⚠ 保存图片组记录失败: ${saveResult.message}`;
+                        imageUploadResult.appendChild(errorDiv);
+                    }
+                } catch (error) {
+                    const errorDiv = document.createElement('div');
+                    errorDiv.style.marginTop = '15px';
+                    errorDiv.style.padding = '10px';
+                    errorDiv.style.borderRadius = '6px';
+                    errorDiv.style.background = '#ffebee';
+                    errorDiv.style.color = '#c62828';
+                    errorDiv.innerHTML = `⚠ 保存图片组记录失败: ${error.message}`;
+                    imageUploadResult.appendChild(errorDiv);
+                }
+            }
+            
+            startImageUploadBtn.disabled = false;
+            startImageUploadBtn.textContent = '开始上传';
+            
+            // 清空文件选择
+            imageInput.value = '';
+            imageGroupNameInput.value = '';
+            selectedImages = [];
+            
+            // 2秒后刷新页面查看最新列表
+            setTimeout(() => {
+                window.location.reload();
+            }, 2000);
+            
+            console.log('[DEBUG] 图片组上传流程完成');
         });
         
         console.log('[DEBUG] 所有事件绑定完成，页面已准备好响应用户操作');

@@ -328,9 +328,9 @@
             <p class="home-subtitle">点击按钮，随机下载一个视频</p>
             
             <!-- 下载按钮 -->
-            {% if can_download and stats.available_videos > 0 %}
+            {% if can_download and stats.available_total > 0 %}
             <a href="{{ url_for('download_action') }}" class="download-btn" id="main-download-btn">
-                <span>⬇️</span> 随机下载视频
+                <span>⬇️</span> 随机下载视频/图片组
             </a>
             {% elif not can_download %}
             <button class="download-btn" disabled>
@@ -338,15 +338,15 @@
             </button>
             {% else %}
             <button class="download-btn" disabled>
-                <span>📭</span> 暂无可下载视频
+                <span>📭</span> 暂无可领取内容
             </button>
             {% endif %}
             
             <!-- 视频池状态 -->
             <div class="video-status">
                 <div class="status-item">
-                    <div class="status-value">{{ stats.available_videos }}</div>
-                    <div class="status-label">待下载视频</div>
+                    <div class="status-value">{{ stats.available_total }}</div>
+                    <div class="status-label">待下载内容</div>
                 </div>
                 <div class="status-item">
                     <div class="status-value">{{ records|length }}</div>

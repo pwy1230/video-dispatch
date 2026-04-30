@@ -52,9 +52,9 @@
                     <div class="stat-label">待分发视频</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-icon">✅</div>
-                    <div class="stat-value">{{ stats.assigned_videos }}</div>
-                    <div class="stat-label">已分发视频</div>
+                    <div class="stat-icon">🖼️</div>
+                    <div class="stat-value">{{ stats.available_image_groups }}</div>
+                    <div class="stat-label">待分发图片组</div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-icon">👥</div>
@@ -124,13 +124,14 @@
                 <div class="card">
                     <div class="card-header">
                         <h2 class="card-title">📦 视频池状态</h2>
-                        <span class="text-muted">共 {{ stats.total_videos }} 个视频</span>
+                        <span class="text-muted">共 {{ stats.total_videos }} 个视频，{{ stats.total_image_groups }} 个图片组</span>
                     </div>
                     
                     <div class="table-wrapper">
                         <table class="table">
                             <thead>
                                 <tr>
+                                    <th>类型</th>
                                     <th>文件名</th>
                                     <th>大小</th>
                                     <th>状态</th>
@@ -140,6 +141,13 @@
                             <tbody>
                                 {% for video in videos %}
                                 <tr>
+                                    <td>
+                                        {% if video.type == 'image_group' %}
+                                        <span class="badge" style="background: #8b5cf6;">🖼️ 图片组</span>
+                                        {% else %}
+                                        <span class="badge" style="background: var(--primary);">🎬 视频</span>
+                                        {% endif %}
+                                    </td>
                                     <td class="video-name" title="{{ video.original_filename }}">
                                         {{ video.original_filename }}
                                     </td>
@@ -151,11 +159,19 @@
                                     </td>
                                     <td>
                                         {% if not video.is_assigned %}
-                                        <a href="/admin/delete_video/{{ video.id }}" 
-                                           class="btn btn-danger btn-sm btn-delete"
-                                           data-message="确定要删除视频 {{ video.original_filename }} 吗？">
-                                            删除
-                                        </a>
+                                            {% if video.type == 'image_group' %}
+                                            <a href="/admin/delete_image_group/{{ video.id }}" 
+                                               class="btn btn-danger btn-sm btn-delete"
+                                               data-message="确定要删除图片组 {{ video.original_filename }} 吗？">
+                                                删除
+                                            </a>
+                                            {% else %}
+                                            <a href="/admin/delete_video/{{ video.id }}" 
+                                               class="btn btn-danger btn-sm btn-delete"
+                                               data-message="确定要删除视频 {{ video.original_filename }} 吗？">
+                                                删除
+                                            </a>
+                                            {% endif %}
                                         {% else %}
                                         <span class="text-muted">-</span>
                                         {% endif %}
@@ -163,7 +179,7 @@
                                 </tr>
                                 {% else %}
                                 <tr>
-                                    <td colspan="4" class="text-center text-muted">暂无视频</td>
+                                    <td colspan="5" class="text-center text-muted">暂无内容</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
