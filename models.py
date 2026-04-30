@@ -512,6 +512,8 @@ def get_stats():
     cursor.execute('SELECT COUNT(*) FROM download_records')
     downloads = cursor.fetchone()[0]
     
+    total_screenshots = cursor.execute('SELECT COUNT(*) FROM upload_screenshots').fetchone()[0]
+    
     conn.close()
     
     return {
@@ -527,7 +529,7 @@ def get_stats():
         'uploader_count': role_counts.get('uploader', 0),
         'employee_count': role_counts.get('employee', 0),
         'total_downloads': downloads,
-        'total_screenshots': cursor.execute('SELECT COUNT(*) FROM upload_screenshots').fetchone()[0] if conn else 0
+        'total_screenshots': total_screenshots
     }
 
 
