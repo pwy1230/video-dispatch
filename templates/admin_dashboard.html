@@ -134,6 +134,7 @@
                                     <th>类型</th>
                                     <th>文件名</th>
                                     <th>大小</th>
+                                    <th>上传者</th>
                                     <th>状态</th>
                                     <th>操作</th>
                                 </tr>
@@ -152,6 +153,7 @@
                                         {{ video.original_filename }}
                                     </td>
                                     <td>{{ video.file_size_fmt }}</td>
+                                    <td>{{ video.uploader_name or '未知' }}</td>
                                     <td>
                                         <span class="badge {% if video.is_assigned %}badge-assigned{% else %}badge-available{% endif %}">
                                             {% if video.is_assigned %}已分发{% else %}待分发{% endif %}
