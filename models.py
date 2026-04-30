@@ -6,7 +6,7 @@
 
 import os
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timedelta
 from werkzeug.security import generate_password_hash, check_password_hash
 
 # 数据库文件路径（基于项目目录）
@@ -108,6 +108,10 @@ def init_db():
     # 添加 publish_requirements 字段（如果不存在）
     if 'publish_requirements' not in video_columns:
         cursor.execute('ALTER TABLE videos ADD COLUMN publish_requirements TEXT')
+    
+    # 添加 frozen_until 字段（如果不存在）- 用于下载冻结机制
+    if 'frozen_until' not in video_columns:
+        cursor.execute('ALTER TABLE videos ADD COLUMN frozen_until TIMESTAMP')
     
     # 检查 image_group_items 表是否存在，不存在则创建
     cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='image_group_items'")
@@ -347,10 +351,39 @@ def delete_image_group(video_id):
         raise e
 
 
-def get_available_videos():
-    """获取所有可用的（未被下载的）视频"""
+def unfreeze_expired_videos():
+    """解冻所有过期的冻结视频，将 frozen_until < now 且 is_assigned=0 的视频解冻"""
     conn = get_db()
     cursor = conn.cursor()
+    
+    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    
+    # 解冻过期视频（frozen_until < now 且 is_assigned=0）
+    cursor.execute('''
+        UPDATE videos 
+        SET frozen_until = NULL 
+        WHERE frozen_until IS NOT NULL 
+        AND frozen_until < ?
+        AND is_assigned = 0
+    ''', (now,))
+    
+    unfrozen_count = cursor.rowcount
+    
+    conn.commit()
+    conn.close()
+    
+    if unfrozen_count > 0:
+        print(f"✓ 已解冻 {unfrozen_count} 个过期视频")
+    
+    return unfrozen_count
+
+
+def get_available_videos():
+    """获取所有可用的（未被下载且未被冻结的）视频"""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     
     cursor.execute('''
         SELECT v.id, v.type, v.original_filename, v.file_size, v.uploaded_at, 
@@ -358,9 +391,10 @@ def get_available_videos():
                u.username as uploader_name
         FROM videos v
         JOIN users u ON v.uploader_id = u.id
-        WHERE v.is_assigned = 0
+        WHERE v.is_assigned = 0 
+        AND (v.frozen_until IS NULL OR v.frozen_until < ?)
         ORDER BY v.uploaded_at DESC
-    ''')
+    ''', (now,))
     
     videos = [dict_from_row(row) for row in cursor.fetchall()]
     conn.close()
@@ -417,18 +451,24 @@ def check_daily_limit(client_identifier):
 
 
 def assign_random_video(client_identifier, device_info=None, user_id=None):
-    """随机分配一个视频给客户端"""
+    """随机分配一个视频给客户端，设置10分钟冻结期"""
     conn = get_db()
     cursor = conn.cursor()
     
-    # 获取一个随机可用视频
+    now = datetime.now()
+    frozen_until = (now + timedelta(minutes=10)).strftime('%Y-%m-%d %H:%M:%S')
+    now_str = now.strftime('%Y-%m-%d %H:%M:%S')
+    
+    # 获取一个随机可用视频（未被下载且未被冻结）
     cursor.execute('''
-        SELECT id, original_filename, stored_filename, cloudinary_public_id, cloudinary_url, publish_requirements
+        SELECT id, original_filename, stored_filename, cloudinary_public_id, cloudinary_url, 
+               publish_requirements, type
         FROM videos 
         WHERE is_assigned = 0
+        AND (frozen_until IS NULL OR frozen_until < ?)
         ORDER BY RANDOM() 
         LIMIT 1
-    ''')
+    ''', (now_str,))
     
     video = cursor.fetchone()
     
@@ -438,8 +478,8 @@ def assign_random_video(client_identifier, device_info=None, user_id=None):
     
     video = dict_from_row(video)
     
-    # 标记视频为已分配
-    cursor.execute('UPDATE videos SET is_assigned = 1 WHERE id = ?', (video['id'],))
+    # 设置冻结到期时间（10分钟后），is_assigned 暂时保持为 0
+    cursor.execute('UPDATE videos SET frozen_until = ? WHERE id = ?', (frozen_until, video['id']))
     
     # 创建下载记录
     cursor.execute(
@@ -449,6 +489,10 @@ def assign_random_video(client_identifier, device_info=None, user_id=None):
     
     conn.commit()
     conn.close()
+    
+    # 添加 frozen_until 到返回数据中
+    video['frozen_until'] = frozen_until
+    
     return video
 
 
@@ -461,6 +505,7 @@ def get_download_records(limit=None, user_id=None, client_identifier=None):
         cursor.execute('''
             SELECT d.id, d.downloaded_at, d.client_identifier, d.device_info,
                    v.original_filename, v.id as video_id, v.cloudinary_url, v.publish_requirements,
+                   v.frozen_until, v.is_assigned, v.type as video_type,
                    u.username
             FROM download_records d
             JOIN videos v ON d.video_id = v.id
@@ -472,6 +517,7 @@ def get_download_records(limit=None, user_id=None, client_identifier=None):
         cursor.execute('''
             SELECT d.id, d.downloaded_at, d.client_identifier, d.device_info,
                    v.original_filename, v.id as video_id, v.cloudinary_url, v.publish_requirements,
+                   v.frozen_until, v.is_assigned, v.type as video_type,
                    u.username
             FROM download_records d
             JOIN videos v ON d.video_id = v.id
@@ -483,6 +529,7 @@ def get_download_records(limit=None, user_id=None, client_identifier=None):
         sql = '''
             SELECT d.id, d.downloaded_at, d.client_identifier, d.device_info,
                    v.original_filename, v.id as video_id, v.cloudinary_url, v.publish_requirements,
+                   v.frozen_until, v.is_assigned, v.type as video_type,
                    u.username
             FROM download_records d
             JOIN videos v ON d.video_id = v.id
@@ -564,7 +611,7 @@ def get_stats():
 
 
 def add_screenshot(device_id, video_id, cloudinary_url, cloudinary_public_id, original_filename, video_url, note=None):
-    """添加发布截图记录"""
+    """添加发布截图记录，同时将对应视频标记为已分配"""
     conn = get_db()
     cursor = conn.cursor()
     
@@ -574,6 +621,13 @@ def add_screenshot(device_id, video_id, cloudinary_url, cloudinary_public_id, or
            VALUES (?, ?, ?, ?, ?, ?, ?)''',
         (device_id, video_id, cloudinary_url, cloudinary_public_id, original_filename, video_url, note)
     )
+    
+    # 将视频标记为已分配（上传截图 = 正式分配），清除冻结状态
+    cursor.execute('''
+        UPDATE videos 
+        SET is_assigned = 1, frozen_until = NULL 
+        WHERE id = ?
+    ''', (video_id,))
     
     conn.commit()
     conn.close()

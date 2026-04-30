@@ -20,7 +20,7 @@ from werkzeug.utils import secure_filename
 from models import (
     init_db, add_user, verify_user, get_user_by_id,
     get_all_users, delete_user, get_stats,
-    add_video, get_available_videos, get_all_videos, 
+    add_video, get_available_videos, get_all_videos, unfreeze_expired_videos,
     get_video_by_id, assign_random_video, delete_video,
     get_download_records, check_daily_limit,
     add_image_group, get_image_group_items, delete_image_group,
@@ -583,6 +583,9 @@ def logout():
 @app.route('/download')
 def download_page():
     """员工下载页面"""
+    # 先解冻所有过期的冻结视频
+    unfreeze_expired_videos()
+    
     client_id = get_client_identifier()
     stats = get_stats()
     records = get_download_records(client_identifier=client_id)
@@ -607,6 +610,9 @@ def download_action():
     分配视频后直接重定向到 Cloudinary 下载链接
     如果是图片组则跳转到图片组查看页面
     """
+    # 先解冻所有过期的冻结视频
+    unfreeze_expired_videos()
+    
     client_id = get_client_identifier()
     device_info = get_device_info()
     
@@ -624,7 +630,7 @@ def download_action():
             flash(f'恭喜！获得一组图片 "{video["original_filename"]}"', 'success')
             return redirect(url_for('view_image_group', video_id=video['id']))
         
-        flash(f'下载成功！视频 "{video["original_filename"]}" 已从池子移除', 'success')
+        flash(f'下载成功！视频 "{video["original_filename"]}" 已在保护期，请在10分钟内上传发布截图', 'success')
         
         # 直接重定向到 Cloudinary 下载链接，节省 CPU 秒数
         if USE_CLOUDINARY and video.get('cloudinary_url'):
@@ -635,8 +641,8 @@ def download_action():
             if download_url:
                 return redirect(download_url)
         
-        # 如果没有 Cloudinary，回退到下载页面
-        return redirect(url_for('download_success', video_id=video['id']))
+        # 如果没有 Cloudinary，回退到下载页面，同时传递冻结信息
+        return redirect(url_for('download_success', video_id=video['id'], frozen_until=video.get('frozen_until')))
     else:
         flash('暂无可下载的视频，请联系管理员上传新视频', 'warning')
         return redirect(url_for('download_page'))
@@ -645,12 +651,13 @@ def download_action():
 @app.route('/download/success/<int:video_id>')
 def download_success(video_id):
     """下载成功页面（用于本地存储的回退）"""
+    frozen_until = request.args.get('frozen_until')
     video = get_video_by_id(video_id)
     if not video:
         flash('视频不存在', 'error')
         return redirect(url_for('download_page'))
     
-    return render_template('download_success.html', video=video)
+    return render_template('download_success.html', video=video, frozen_until=frozen_until)
 
 
 @app.route('/download/file/<int:video_id>')
@@ -993,26 +1000,45 @@ def admin_delete_video(video_id):
 @app.route('/image-group/<int:video_id>')
 def view_image_group(video_id):
     """查看图片组页面"""
+    # 先解冻所有过期的冻结视频
+    unfreeze_expired_videos()
+    
     video = get_video_by_id(video_id)
     if not video or video.get('type') != 'image_group':
         flash('图片组不存在', 'error')
         return redirect(url_for('download_page'))
     
-    # 如果图片组未被分配（通过链接直接访问），则标记为已分配
+    # 如果图片组未被分配（通过链接直接访问），则设置冻结时间
     client_id = get_client_identifier()
     device_info = get_device_info()
     user_id = session.get('user_id') if is_logged_in() else None
     
+    now = datetime.now()
+    frozen_until = (now + timedelta(minutes=10)).strftime('%Y-%m-%d %H:%M:%S')
+    now_str = now.strftime('%Y-%m-%d %H:%M:%S')
+    
     if not video.get('is_assigned'):
+        # 检查视频是否可用（未被冻结或已过期）
+        frozen = video.get('frozen_until')
+        if frozen and frozen >= now_str:
+            # 视频被其他用户冻结中
+            flash('该图片组正在被其他用户下载，请稍后再试', 'warning')
+            return redirect(url_for('download_page'))
+        
         conn = get_db()
         cursor = conn.cursor()
-        cursor.execute('UPDATE videos SET is_assigned = 1 WHERE id = ?', (video_id,))
+        # 设置冻结时间而不是直接标记为已分配
+        cursor.execute('UPDATE videos SET frozen_until = ? WHERE id = ?', (frozen_until, video_id))
         cursor.execute(
             'INSERT INTO download_records (video_id, user_id, client_identifier, device_info) VALUES (?, ?, ?, ?)',
             (video_id, user_id, client_id, device_info)
         )
         conn.commit()
         conn.close()
+        
+        # 更新 video 对象
+        video['frozen_until'] = frozen_until
+        flash(f'恭喜！获得一组图片 "{video["original_filename"]}"，请在10分钟内上传发布截图', 'success')
     
     images = get_image_group_items(video_id)
     
@@ -1035,6 +1061,19 @@ def api_get_image_group(video_id):
         'success': True,
         'video': video,
         'images': images
+    })
+
+
+@app.route('/api/video/<int:video_id>')
+def api_get_video(video_id):
+    """API: 获取视频信息（通用）"""
+    video = get_video_by_id(video_id)
+    if not video:
+        return jsonify({'success': False, 'message': '视频不存在'}), 404
+    
+    return jsonify({
+        'success': True,
+        'video': video
     })
 
 

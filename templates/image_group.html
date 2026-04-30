@@ -234,6 +234,111 @@
             background: var(--primary-dark);
         }
         
+        /* 冻结倒计时提示 */
+        .frozen-timer {
+            background: linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(220, 38, 38, 0.1) 100%);
+            border: 2px solid rgba(239, 68, 68, 0.4);
+            border-radius: 10px;
+            padding: 12px 16px;
+            margin: 16px auto;
+            max-width: 600px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.95rem;
+            color: #f87171;
+        }
+        
+        .frozen-timer-icon {
+            font-size: 1.2rem;
+        }
+        
+        .frozen-timer-time {
+            font-weight: 700;
+            font-size: 1.1rem;
+            color: #ef4444;
+            font-family: monospace;
+        }
+        
+        .frozen-timer.warning {
+            background: linear-gradient(135deg, rgba(251, 191, 36, 0.15) 0%, rgba(245, 158, 11, 0.1) 100%);
+            border-color: rgba(251, 191, 36, 0.4);
+        }
+        
+        .frozen-timer.warning .frozen-timer-time {
+            color: #fbbf24;
+        }
+        
+        .frozen-timer.assigned {
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(5, 150, 105, 0.1) 100%);
+            border-color: rgba(16, 185, 129, 0.4);
+            color: #34d399;
+        }
+        
+        /* 底部操作栏 */
+        .bottom-actions {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 16px 20px;
+            background: rgba(30, 41, 59, 0.95);
+            backdrop-filter: blur(10px);
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+            z-index: 100;
+            display: flex;
+            gap: 12px;
+        }
+        
+        .upload-screenshot-btn {
+            flex: 1;
+            padding: 14px 24px;
+            font-size: 1rem;
+            font-weight: 600;
+            border-radius: 12px;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        
+        .upload-screenshot-btn.primary {
+            background: linear-gradient(135deg, var(--success) 0%, #059669 100%);
+            color: white;
+        }
+        
+        .upload-screenshot-btn.primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(16, 185, 129, 0.4);
+        }
+        
+        .back-btn {
+            flex: 1;
+            padding: 14px 24px;
+            font-size: 1rem;
+            font-weight: 600;
+            border-radius: 12px;
+            background: linear-gradient(135deg, var(--secondary) 0%, #475569 100%);
+            color: white;
+            border: none;
+            cursor: pointer;
+            text-decoration: none;
+            text-align: center;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        
+        .back-btn:hover {
+            background: linear-gradient(135deg, #475569 0%, #64748b 100%);
+            transform: translateY(-2px);
+        }
+        
         /* 移动端优化 */
         @media (max-width: 480px) {
             .images-container {
@@ -253,6 +358,22 @@
         <div class="image-group-header">
             <h1 class="image-group-title">📷 {{ video.original_filename or '图片组' }}</h1>
             <p class="image-group-subtitle">共 {{ images|length }} 张图片 - 点击图片可放大查看</p>
+            
+            {% if video.frozen_until and video.is_assigned == 0 %}
+            {# 冻结中状态 - 显示倒计时 #}
+            <div class="frozen-timer" id="frozen-timer">
+                <span class="frozen-timer-icon">⏱️</span>
+                <span>保护期剩余：</span>
+                <span class="frozen-timer-time" id="timer-display" data-frozen="{{ video.frozen_until }}">--:--</span>
+            </div>
+            {% elif video.is_assigned == 1 %}
+            {# 已正式分配状态 #}
+            <div class="frozen-timer assigned">
+                <span class="frozen-timer-icon">✅</span>
+                <span>已确认发布</span>
+            </div>
+            {% endif %}
+            
             {% if video.publish_requirements %}
             <div class="publish-requirements-card" style="max-width: 600px; margin: 16px auto 0; text-align: left;">
                 <div class="publish-requirements-header">
@@ -264,7 +385,7 @@
         </div>
         
         <!-- 图片列表 -->
-        <div class="images-container">
+        <div class="images-container" style="padding-bottom: 80px;">
             {% for image in images %}
             <div class="image-card">
                 <div class="image-wrapper">
@@ -283,8 +404,13 @@
         </div>
     </div>
     
-    <!-- 底部返回按钮 -->
-    <div class="bottom-bar">
+    <!-- 底部操作栏 -->
+    <div class="bottom-actions">
+        {% if video.frozen_until or video.is_assigned == 0 %}
+        <button class="upload-screenshot-btn primary" onclick="openScreenshotModal()">
+            📤 上传发布截图
+        </button>
+        {% endif %}
         <a href="{{ url_for('download_page') }}" class="back-btn">
             ← 返回首页
         </a>
@@ -300,6 +426,63 @@
     </div>
     
     <script>
+        // 生成或获取设备唯一ID
+        function getDeviceId() {
+            let deviceId = localStorage.getItem('video_dispatch_device_id');
+            if (!deviceId) {
+                deviceId = 'dev_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                localStorage.setItem('video_dispatch_device_id', deviceId);
+            }
+            return deviceId;
+        }
+        
+        const deviceId = getDeviceId();
+        const videoId = {{ video.id }};
+        
+        // ========== 冻结倒计时功能 ==========
+        function formatTime(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+        }
+        
+        function updateTimer() {
+            const timerEl = document.getElementById('frozen-timer');
+            const timeEl = document.getElementById('timer-display');
+            if (!timerEl || !timeEl) return;
+            
+            const frozenUntil = timeEl.dataset.frozen;
+            const now = new Date();
+            const frozenTime = new Date(frozenUntil);
+            const remaining = Math.max(0, Math.floor((frozenTime - now) / 1000));
+            
+            if (remaining <= 0) {
+                timerEl.className = 'frozen-timer expired';
+                timerEl.innerHTML = `
+                    <span class="frozen-timer-icon">⏰</span>
+                    <span>保护期已结束</span>
+                `;
+                // 隐藏上传按钮
+                const uploadBtn = document.querySelector('.upload-screenshot-btn');
+                if (uploadBtn) uploadBtn.style.display = 'none';
+                return;
+            } else if (remaining <= 60) {
+                timerEl.className = 'frozen-timer warning';
+            }
+            
+            timeEl.textContent = formatTime(remaining);
+        }
+        
+        // 初始化倒计时
+        updateTimer();
+        setInterval(updateTimer, 1000);
+        
+        // 打开截图上传（跳转到首页模态框）
+        function openScreenshotModal() {
+            // 跳转到首页并打开模态框
+            window.location.href = '/download?open_screenshot_modal=' + videoId + '&device_id=' + encodeURIComponent(deviceId);
+        }
+        
         // 图片预览功能
         function openPreview(url, filename) {
             const modal = document.getElementById('preview-modal');

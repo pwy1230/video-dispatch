@@ -758,6 +758,64 @@
             margin-left: auto;
         }
         
+        /* 冻结倒计时提示 */
+        .frozen-timer {
+            background: linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(220, 38, 38, 0.1) 100%);
+            border: 2px solid rgba(239, 68, 68, 0.4);
+            border-radius: 10px;
+            padding: 10px 14px;
+            margin-top: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.9rem;
+            color: #f87171;
+        }
+        
+        .frozen-timer-icon {
+            font-size: 1.1rem;
+        }
+        
+        .frozen-timer-time {
+            font-weight: 700;
+            font-size: 1rem;
+            color: #ef4444;
+            font-family: monospace;
+        }
+        
+        .frozen-timer.warning {
+            background: linear-gradient(135deg, rgba(251, 191, 36, 0.15) 0%, rgba(245, 158, 11, 0.1) 100%);
+            border-color: rgba(251, 191, 36, 0.4);
+        }
+        
+        .frozen-timer.warning .frozen-timer-time {
+            color: #fbbf24;
+        }
+        
+        .frozen-timer.expired {
+            background: rgba(255, 255, 255, 0.05);
+            border-color: rgba(255, 255, 255, 0.1);
+            color: var(--text-secondary);
+        }
+        
+        .frozen-timer.assigned {
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(5, 150, 105, 0.1) 100%);
+            border-color: rgba(16, 185, 129, 0.4);
+            color: #34d399;
+        }
+        
+        /* 隐藏已过期的下载项 */
+        .download-item.expired {
+            opacity: 0.5;
+            pointer-events: none;
+        }
+        
+        .download-item.expired .download-info::after {
+            content: '（已回收）';
+            color: var(--danger);
+            font-size: 0.8rem;
+        }
+        
         /* 移动端优化 */
         @media (max-width: 480px) {
             .home-title {
@@ -861,12 +919,32 @@
                 </h3>
                 <div class="download-list">
                     {% for record in records %}
-                    <div class="download-item" data-video-id="{{ record.video_id }}">
+                    <div class="download-item {% if record.frozen_until and record.is_assigned == 0 %}frozen{% endif %}" 
+                         data-video-id="{{ record.video_id }}" 
+                         data-frozen-until="{{ record.frozen_until or '' }}"
+                         data-is-assigned="{{ record.is_assigned or 0 }}">
                         <div class="download-info">
                             <div class="download-name" title="{{ record.original_filename }}">
-                                🎥 {{ record.original_filename }}
+                                {% if record.video_type == 'image_group' %}🖼️{% else %}🎥{% endif %} 
+                                {{ record.original_filename }}
                             </div>
                             <div class="download-time">{{ record.downloaded_fmt }}</div>
+                            
+                            {% if record.frozen_until and record.is_assigned == 0 %}
+                            {# 冻结中状态 - 显示倒计时 #}
+                            <div class="frozen-timer" id="frozen-timer-{{ record.video_id }}">
+                                <span class="frozen-timer-icon">⏱️</span>
+                                <span>保护期剩余：</span>
+                                <span class="frozen-timer-time" data-frozen="{{ record.frozen_until }}">--:--</span>
+                            </div>
+                            {% elif record.is_assigned == 1 %}
+                            {# 已正式分配状态 #}
+                            <div class="frozen-timer assigned">
+                                <span class="frozen-timer-icon">✅</span>
+                                <span>已确认发布</span>
+                            </div>
+                            {% endif %}
+                            
                             {% if record.publish_requirements %}
                             <div class="publish-requirements-card">
                                 <div class="publish-requirements-header">
@@ -1015,6 +1093,29 @@
         }
 
         const deviceId = getDeviceId();
+
+        // 检查 URL 参数，是否需要自动打开截图模态框
+        const urlParams = new URLSearchParams(window.location.search);
+        const openScreenshotModal = urlParams.get('open_screenshot_modal');
+        if (openScreenshotModal) {
+            // 清理 URL 参数
+            const cleanUrl = window.location.pathname;
+            window.history.replaceState({}, document.title, cleanUrl);
+            // 异步获取视频信息并打开模态框
+            setTimeout(async () => {
+                try {
+                    const response = await fetch(`/api/video/${openScreenshotModal}`);
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (data.video) {
+                            openScreenshotModal(openScreenshotModal, data.video.original_filename || '视频');
+                        }
+                    }
+                } catch (e) {
+                    console.error('获取视频信息失败:', e);
+                }
+            }, 500);
+        }
 
         // 给下载按钮加上设备ID参数
         const downloadBtn = document.getElementById('main-download-btn');
@@ -1409,6 +1510,9 @@
                 // 更新该视频的截图数量
                 updateScreenshotBadge(videoId);
                 
+                // 更新下载项状态为已确认发布
+                markVideoAsAssigned(videoId);
+                
                 // 清空表单
                 selectedFiles = [];
                 uploadedImages = [];
@@ -1490,6 +1594,40 @@
             }
         }
         
+        // 标记视频为已正式分配（上传截图后）
+        function markVideoAsAssigned(videoId) {
+            const downloadItem = document.querySelector(`.download-item[data-video-id="${videoId}"]`);
+            if (!downloadItem) return;
+            
+            // 移除冻结状态
+            downloadItem.classList.remove('frozen');
+            downloadItem.dataset.isAssigned = '1';
+            
+            // 移除冻结倒计时显示
+            const frozenTimer = document.getElementById(`frozen-timer-${videoId}`);
+            if (frozenTimer) {
+                frozenTimer.remove();
+            }
+            
+            // 添加已确认发布标识
+            const downloadInfo = downloadItem.querySelector('.download-info');
+            if (downloadInfo) {
+                const assignedBadge = document.createElement('div');
+                assignedBadge.className = 'frozen-timer assigned';
+                assignedBadge.innerHTML = `
+                    <span class="frozen-timer-icon">✅</span>
+                    <span>已确认发布</span>
+                `;
+                // 插入到 download-time 之后
+                const downloadTime = downloadInfo.querySelector('.download-time');
+                if (downloadTime) {
+                    downloadTime.insertAdjacentElement('afterend', assignedBadge);
+                } else {
+                    downloadInfo.appendChild(assignedBadge);
+                }
+            }
+        }
+        
         // 打开图片查看器
         function openImageViewer(url) {
             document.getElementById('viewer-image').src = url;
@@ -1501,6 +1639,75 @@
             document.getElementById('image-viewer').classList.remove('active');
         }
         
+        // ========== 冻结倒计时功能 ==========
+        
+        // 格式化时间显示 (MM:SS)
+        function formatTime(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+        }
+        
+        // 更新单个倒计时显示
+        function updateFrozenTimer(videoId, frozenUntil) {
+            const timerEl = document.getElementById(`frozen-timer-${videoId}`);
+            if (!timerEl || !frozenUntil) return;
+            
+            const timeEl = timerEl.querySelector('.frozen-timer-time');
+            if (!timeEl) return;
+            
+            const now = new Date();
+            const frozenTime = new Date(frozenUntil);
+            const remaining = Math.max(0, Math.floor((frozenTime - now) / 1000));
+            
+            if (remaining <= 0) {
+                // 已过期
+                const downloadItem = timerEl.closest('.download-item');
+                if (downloadItem) {
+                    downloadItem.classList.add('expired');
+                    downloadItem.classList.remove('frozen');
+                }
+                timerEl.className = 'frozen-timer expired';
+                timerEl.innerHTML = `
+                    <span class="frozen-timer-icon">⏰</span>
+                    <span>保护期已结束</span>
+                `;
+                return true; // 已过期
+            } else if (remaining <= 60) {
+                // 不足1分钟，警告状态
+                timerEl.className = 'frozen-timer warning';
+            }
+            
+            timeEl.textContent = formatTime(remaining);
+            return false; // 未过期
+        }
+        
+        // 初始化并启动所有倒计时
+        function initFrozenTimers() {
+            document.querySelectorAll('.frozen-timer-time[data-frozen]').forEach(el => {
+                const frozenUntil = el.dataset.frozen;
+                const timerEl = el.closest('.frozen-timer');
+                const videoId = timerEl ? timerEl.id.replace('frozen-timer-', '') : null;
+                
+                if (videoId) {
+                    updateFrozenTimer(videoId, frozenUntil);
+                }
+            });
+        }
+        
+        // 每秒更新倒计时
+        setInterval(function() {
+            document.querySelectorAll('.frozen-timer-time[data-frozen]').forEach(el => {
+                const frozenUntil = el.dataset.frozen;
+                const timerEl = el.closest('.frozen-timer');
+                const videoId = timerEl ? timerEl.id.replace('frozen-timer-', '') : null;
+                
+                if (videoId && timerEl && !timerEl.classList.contains('expired')) {
+                    updateFrozenTimer(videoId, frozenUntil);
+                }
+            });
+        }, 1000);
+        
         // ESC 关闭模态框
         document.addEventListener('keydown', function(e) {
             if (e.key === 'Escape') {
@@ -1509,8 +1716,12 @@
             }
         });
         
-        // 页面加载时检查各视频的截图数量
+        // 页面加载时检查各视频的截图数量和冻结状态
         document.addEventListener('DOMContentLoaded', function() {
+            // 初始化冻结倒计时
+            initFrozenTimers();
+            
+            // 检查截图数量
             document.querySelectorAll('.download-item[data-video-id]').forEach(item => {
                 const videoId = item.dataset.videoId;
                 updateScreenshotBadge(videoId);
