@@ -234,6 +234,7 @@ def api_save_upload():
         return jsonify({'success': False, 'message': '缺少参数'}), 400
     
     upload_type = data.get('type', 'video')
+    publish_requirements = data.get('publish_requirements', '').strip() or None
     
     if upload_type == 'image_group':
         # 图片组上传
@@ -245,7 +246,7 @@ def api_save_upload():
         
         try:
             user = get_current_user()
-            video_id = add_image_group(group_name, user['id'], images)
+            video_id = add_image_group(group_name, user['id'], images, publish_requirements=publish_requirements)
             print(f"✓ 图片组记录已保存: {group_name} ({len(images)}张图片)")
             
             return jsonify({
@@ -276,7 +277,8 @@ def api_save_upload():
             original_filename, stored_filename, file_size, user['id'],
             cloudinary_public_id=cloudinary_public_id,
             cloudinary_url=cloudinary_url,
-            video_type='video'
+            video_type='video',
+            publish_requirements=publish_requirements
         )
         
         print(f"✓ 视频记录已保存: {original_filename}")

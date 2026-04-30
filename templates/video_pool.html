@@ -117,6 +117,19 @@
             white-space: nowrap;
         }
         
+        /* 发布要求列样式 */
+        .publish-req-cell {
+            max-width: 200px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
+        .publish-req-text {
+            color: #fbbf24;
+            font-size: 0.85rem;
+        }
+        
         .modal-overlay {
             position: fixed;
             top: 0;
@@ -344,6 +357,7 @@
                                 <th>文件名</th>
                                 <th>大小</th>
                                 <th>上传者</th>
+                                <th>发布要求</th>
                                 <th>状态</th>
                                 <th>操作</th>
                             </tr>
@@ -370,6 +384,13 @@
                                 </td>
                                 <td>{{ video.file_size_fmt }}</td>
                                 <td>{{ video.uploader_name or '未知' }}</td>
+                                <td class="publish-req-cell" title="{{ video.publish_requirements or '' }}">
+                                    {% if video.publish_requirements %}
+                                    <span class="publish-req-text">{{ video.publish_requirements[:30] }}{% if video.publish_requirements|length > 30 %}...{% endif %}</span>
+                                    {% else %}
+                                    <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
                                 <td>
                                     <span class="badge {% if video.is_assigned %}badge-assigned{% else %}badge-available{% endif %}">
                                         {% if video.is_assigned %}已分发{% else %}待分发{% endif %}
@@ -400,7 +421,7 @@
                             </tr>
                             {% else %}
                             <tr>
-                                <td colspan="7" class="text-center text-muted">暂无内容</td>
+                                <td colspan="8" class="text-center text-muted">暂无内容</td>
                             </tr>
                             {% endfor %}
                         </tbody>

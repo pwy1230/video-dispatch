@@ -105,6 +105,10 @@ def init_db():
     if 'type' not in video_columns:
         cursor.execute('ALTER TABLE videos ADD COLUMN type TEXT DEFAULT "video"')
     
+    # 添加 publish_requirements 字段（如果不存在）
+    if 'publish_requirements' not in video_columns:
+        cursor.execute('ALTER TABLE videos ADD COLUMN publish_requirements TEXT')
+    
     # 检查 image_group_items 表是否存在，不存在则创建
     cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='image_group_items'")
     if not cursor.fetchone():
@@ -240,16 +244,17 @@ def delete_user(user_id):
 
 
 def add_video(original_filename, stored_filename, file_size, uploader_id, 
-               cloudinary_public_id=None, cloudinary_url=None, video_type='video'):
+               cloudinary_public_id=None, cloudinary_url=None, video_type='video',
+               publish_requirements=None):
     """添加视频到视频池"""
     conn = get_db()
     cursor = conn.cursor()
     
     cursor.execute(
         '''INSERT INTO videos (type, original_filename, stored_filename, file_size, uploader_id,
-           cloudinary_public_id, cloudinary_url) VALUES (?, ?, ?, ?, ?, ?, ?)''',
+           cloudinary_public_id, cloudinary_url, publish_requirements) VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
         (video_type, original_filename, stored_filename, file_size, uploader_id,
-         cloudinary_public_id, cloudinary_url)
+         cloudinary_public_id, cloudinary_url, publish_requirements)
     )
     video_id = cursor.lastrowid
     
@@ -258,7 +263,7 @@ def add_video(original_filename, stored_filename, file_size, uploader_id,
     return video_id
 
 
-def add_image_group(group_name, uploader_id, images):
+def add_image_group(group_name, uploader_id, images, publish_requirements=None):
     """创建图片组并添加所有图片"""
     conn = get_db()
     cursor = conn.cursor()
@@ -266,9 +271,9 @@ def add_image_group(group_name, uploader_id, images):
     try:
         # 创建图片组记录
         cursor.execute(
-            '''INSERT INTO videos (type, original_filename, stored_filename, file_size, uploader_id)
-               VALUES (?, ?, ?, ?, ?)''',
-            ('image_group', group_name, '', 0, uploader_id)
+            '''INSERT INTO videos (type, original_filename, stored_filename, file_size, uploader_id, publish_requirements)
+               VALUES (?, ?, ?, ?, ?, ?)''',
+            ('image_group', group_name, '', 0, uploader_id, publish_requirements)
         )
         video_id = cursor.lastrowid
         
@@ -338,7 +343,7 @@ def get_available_videos():
     
     cursor.execute('''
         SELECT v.id, v.type, v.original_filename, v.file_size, v.uploaded_at, 
-               v.cloudinary_public_id, v.cloudinary_url,
+               v.cloudinary_public_id, v.cloudinary_url, v.publish_requirements,
                u.username as uploader_name
         FROM videos v
         JOIN users u ON v.uploader_id = u.id
@@ -358,7 +363,7 @@ def get_all_videos():
     
     cursor.execute('''
         SELECT v.id, v.type, v.original_filename, v.file_size, v.uploaded_at, v.is_assigned,
-               v.cloudinary_public_id, v.cloudinary_url,
+               v.cloudinary_public_id, v.cloudinary_url, v.publish_requirements,
                u.username as uploader_name
         FROM videos v
         JOIN users u ON v.uploader_id = u.id
@@ -407,7 +412,7 @@ def assign_random_video(client_identifier, device_info=None, user_id=None):
     
     # 获取一个随机可用视频
     cursor.execute('''
-        SELECT id, original_filename, stored_filename, cloudinary_public_id, cloudinary_url
+        SELECT id, original_filename, stored_filename, cloudinary_public_id, cloudinary_url, publish_requirements
         FROM videos 
         WHERE is_assigned = 0
         ORDER BY RANDOM() 
@@ -444,7 +449,7 @@ def get_download_records(limit=None, user_id=None, client_identifier=None):
     if user_id:
         cursor.execute('''
             SELECT d.id, d.downloaded_at, d.client_identifier, d.device_info,
-                   v.original_filename, v.id as video_id, v.cloudinary_url,
+                   v.original_filename, v.id as video_id, v.cloudinary_url, v.publish_requirements,
                    u.username
             FROM download_records d
             JOIN videos v ON d.video_id = v.id
@@ -455,7 +460,7 @@ def get_download_records(limit=None, user_id=None, client_identifier=None):
     elif client_identifier:
         cursor.execute('''
             SELECT d.id, d.downloaded_at, d.client_identifier, d.device_info,
-                   v.original_filename, v.id as video_id, v.cloudinary_url,
+                   v.original_filename, v.id as video_id, v.cloudinary_url, v.publish_requirements,
                    u.username
             FROM download_records d
             JOIN videos v ON d.video_id = v.id
@@ -466,7 +471,7 @@ def get_download_records(limit=None, user_id=None, client_identifier=None):
     else:
         sql = '''
             SELECT d.id, d.downloaded_at, d.client_identifier, d.device_info,
-                   v.original_filename, v.id as video_id, v.cloudinary_url,
+                   v.original_filename, v.id as video_id, v.cloudinary_url, v.publish_requirements,
                    u.username
             FROM download_records d
             JOIN videos v ON d.video_id = v.id

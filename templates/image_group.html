@@ -187,6 +187,32 @@
             background: rgba(255, 255, 255, 0.2);
         }
         
+        /* 发布要求卡片样式 */
+        .publish-requirements-card {
+            background: linear-gradient(135deg, rgba(251, 191, 36, 0.15) 0%, rgba(245, 158, 11, 0.1) 100%);
+            border: 2px solid rgba(251, 191, 36, 0.4);
+            border-radius: 12px;
+            padding: 12px 16px;
+        }
+        
+        .publish-requirements-header {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #fbbf24;
+            margin-bottom: 8px;
+        }
+        
+        .publish-requirements-content {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            white-space: pre-wrap;
+            word-break: break-word;
+            line-height: 1.5;
+        }
+        
         .preview-download {
             position: absolute;
             bottom: 20px;
@@ -227,6 +253,14 @@
         <div class="image-group-header">
             <h1 class="image-group-title">📷 {{ video.original_filename or '图片组' }}</h1>
             <p class="image-group-subtitle">共 {{ images|length }} 张图片 - 点击图片可放大查看</p>
+            {% if video.publish_requirements %}
+            <div class="publish-requirements-card" style="max-width: 600px; margin: 16px auto 0; text-align: left;">
+                <div class="publish-requirements-header">
+                    <span>📋</span> 发布要求
+                </div>
+                <div class="publish-requirements-content">{{ video.publish_requirements }}</div>
+            </div>
+            {% endif %}
         </div>
         
         <!-- 图片列表 -->

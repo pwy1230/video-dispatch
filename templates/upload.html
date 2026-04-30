@@ -162,6 +162,13 @@
                         <input type="file" name="video" class="upload-input" id="video-input"
                                accept="video/*,.mp4,.avi,.mov,.mkv,.webm,.flv,.wmv" multiple>
                     </div>
+                    
+                    <!-- 发布要求（可选） -->
+                    <div class="form-group" style="margin-top: 15px;">
+                        <label class="form-label">📝 发布要求（可选）</label>
+                        <textarea id="video-publish-requirements" class="form-input" rows="3"
+                                  placeholder="发布标题：xxx，背景音乐：xxx，发布时间：xxx 等要求"></textarea>
+                    </div>
                 </form>
                 
                 <!-- 上传进度区域 -->
@@ -195,6 +202,13 @@
                     <label class="form-label">图片组名称</label>
                     <input type="text" id="image-group-name" class="form-input" 
                            placeholder="例如：产品展示_001（留空自动生成）">
+                </div>
+                
+                <!-- 图片组发布要求（可选） -->
+                <div class="form-group" style="margin-bottom: 15px;">
+                    <label class="form-label">📝 发布要求（可选）</label>
+                    <textarea id="image-group-requirements" class="form-input" rows="3"
+                              placeholder="发布标题：xxx，背景音乐：xxx，发布时间：xxx 等要求"></textarea>
                 </div>
                 
                 <form id="image-group-form">
@@ -564,11 +578,13 @@
                 
                 if (cloudinaryResult.success) {
                     // 2. 保存记录到服务器
+                    const publishRequirements = document.getElementById('video-publish-requirements').value.trim();
                     const saveResult = await saveUploadRecord({
                         cloudinary_url: cloudinaryResult.cloudinary_url,
                         cloudinary_public_id: cloudinaryResult.cloudinary_public_id,
                         original_filename: cloudinaryResult.original_filename,
-                        file_size: cloudinaryResult.file_size
+                        file_size: cloudinaryResult.file_size,
+                        publish_requirements: publishRequirements || null
                     });
                     
                     if (saveResult.success) {
@@ -914,6 +930,7 @@
             // 如果有成功上传的图片，保存到服务器
             if (uploadedImages.length > 0) {
                 const groupName = imageGroupNameInput.value.trim() || `图片组_${Date.now()}`;
+                const publishRequirements = document.getElementById('image-group-requirements').value.trim();
                 
                 try {
                     const response = await fetch('{{ url_for("api_save_upload") }}', {
@@ -924,7 +941,8 @@
                         body: JSON.stringify({
                             type: 'image_group',
                             group_name: groupName,
-                            images: uploadedImages
+                            images: uploadedImages,
+                            publish_requirements: publishRequirements || null
                         })
                     });
                     const saveResult = await response.json();
