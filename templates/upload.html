@@ -194,7 +194,7 @@
             <div class="card mt-3">
                 <div class="card-header">
                     <h2 class="card-title">🖼️ 上传图片组</h2>
-                    <span class="text-muted">3-5张图片为一组，随机分配给员工（直传 Cloudinary）</span>
+                    <span class="text-muted">1-5张图片为一组，随机分配给员工（直传 Cloudinary）</span>
                 </div>
                 
                 <!-- 图片组名称 -->
@@ -215,7 +215,7 @@
                     <div class="upload-zone" id="image-upload-zone" style="border: 2px dashed #60a5fa;">
                         <div class="upload-zone-icon">🖼️</div>
                         <div class="upload-zone-text">点击或拖拽图片到此处上传</div>
-                        <div class="upload-zone-hint">必须选择 3-5 张图片</div>
+                        <div class="upload-zone-hint">选择 1-5 张图片</div>
                         <input type="file" name="images" class="upload-input" id="image-input"
                                accept="image/*" multiple>
                     </div>
@@ -223,7 +223,7 @@
                 
                 <!-- 已选图片预览 -->
                 <div id="image-preview-area" class="selected-files" style="display: none; margin-top: 15px;">
-                    <h4>已选择的图片（<span id="image-count">0</span>/3-5张）：</h4>
+                    <h4>已选择的图片（<span id="image-count">0</span>/1-5张）：</h4>
                     <div id="image-thumbnails" style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px;"></div>
                     <button type="button" class="btn btn-primary mt-2" id="start-image-upload-btn" disabled>开始上传</button>
                 </div>
@@ -703,7 +703,7 @@
                 });
                 
                 // 根据数量启用/禁用上传按钮
-                if (files.length >= 3) {
+                if (files.length >= 1) {
                     startImageUploadBtn.disabled = false;
                 } else {
                     startImageUploadBtn.disabled = true;
@@ -852,8 +852,8 @@
         // 开始上传图片组
         startImageUploadBtn.addEventListener('click', async function() {
             console.log('[DEBUG] 图片组上传按钮点击');
-            if (selectedImages.length < 3 || selectedImages.length > 5) {
-                alert('图片组需要 3-5 张图片');
+            if (selectedImages.length < 1 || selectedImages.length > 5) {
+                alert('图片组需要 1-5 张图片');
                 return;
             }
             
