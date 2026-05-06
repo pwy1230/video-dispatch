@@ -563,12 +563,14 @@ def get_stats():
     conn = get_db()
     cursor = conn.cursor()
     
-    # 待分发视频数量（不包含图片组）
-    cursor.execute('SELECT COUNT(*) FROM videos WHERE is_assigned = 0 AND type = "video"')
+    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    
+    # 待分发视频数量（不包含图片组，排除冻结中的）
+    cursor.execute('SELECT COUNT(*) FROM videos WHERE is_assigned = 0 AND type = "video" AND (frozen_until IS NULL OR frozen_until < ?)', (now,))
     available_videos = cursor.fetchone()[0]
     
-    # 待分发图片组数量
-    cursor.execute('SELECT COUNT(*) FROM videos WHERE is_assigned = 0 AND type = "image_group"')
+    # 待分发图片组数量（排除冻结中的）
+    cursor.execute('SELECT COUNT(*) FROM videos WHERE is_assigned = 0 AND type = "image_group" AND (frozen_until IS NULL OR frozen_until < ?)', (now,))
     available_image_groups = cursor.fetchone()[0]
     
     # 已分发视频数量
