@@ -96,8 +96,13 @@ def login_required(role=None):
     def decorator(f):
         def wrapper(*args, **kwargs):
             if not is_logged_in():
+                # API请求返回JSON，页面请求重定向
+                if request.path.startswith('/api/'):
+                    return jsonify({'success': False, 'message': '请先登录'}), 401
                 return redirect(url_for('login'))
             if role and get_current_user()['role'] != role and get_current_user()['role'] != 'admin':
+                if request.path.startswith('/api/'):
+                    return jsonify({'success': False, 'message': '权限不足'}), 403
                 flash('您没有权限访问此页面', 'error')
                 return redirect(url_for('index'))
             return f(*args, **kwargs)

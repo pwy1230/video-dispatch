@@ -516,8 +516,17 @@
                     headers: {
                         'Content-Type': 'application/json'
                     },
+                    credentials: 'same-origin',
                     body: JSON.stringify(uploadResult)
                 });
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    let errorMsg = `HTTP ${response.status}`;
+                    try { errorMsg = JSON.parse(errorText).message || errorMsg; } catch(e) {}
+                    return { success: false, message: errorMsg };
+                }
+                
                 return await response.json();
             } catch (error) {
                 return { success: false, message: error.message };
@@ -938,6 +947,7 @@
                         headers: {
                             'Content-Type': 'application/json'
                         },
+                        credentials: 'same-origin',
                         body: JSON.stringify({
                             type: 'image_group',
                             group_name: groupName,
@@ -945,6 +955,14 @@
                             publish_requirements: publishRequirements || null
                         })
                     });
+                    
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        let errorMsg = `HTTP ${response.status}`;
+                        try { errorMsg = JSON.parse(errorText).message || errorMsg; } catch(e) {}
+                        throw new Error(errorMsg);
+                    }
+                    
                     const saveResult = await response.json();
                     
                     if (saveResult.success) {
