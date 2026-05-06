@@ -232,7 +232,7 @@ def api_save_upload():
     """
     API: 保存前端直传成功后的视频记录
     前端直传到 Cloudinary 成功后调用此接口，将视频信息存入数据库
-    支持普通视频上传和图片组上传
+    支持普通视频上传、单组图片组上传、批量图片组上传
     """
     data = request.get_json()
     
@@ -242,8 +242,37 @@ def api_save_upload():
     upload_type = data.get('type', 'video')
     publish_requirements = (data.get('publish_requirements') or '').strip() or None
     
-    if upload_type == 'image_group':
-        # 图片组上传
+    if upload_type == 'image_group_batch':
+        # 批量图片组上传
+        groups = data.get('groups', [])
+        
+        if not groups or len(groups) < 1:
+            return jsonify({'success': False, 'message': '至少需要1个图片组'}), 400
+        
+        try:
+            user = get_current_user()
+            created_count = 0
+            
+            for group_data in groups:
+                group_name = group_data.get('group_name') or f'图片组_{datetime.now().strftime("%Y%m%d%H%M%S")}'
+                images = group_data.get('images', [])
+                group_publish_requirements = group_data.get('publish_requirements') or publish_requirements
+                
+                if images and len(images) > 0:
+                    video_id = add_image_group(group_name, user['id'], images, publish_requirements=group_publish_requirements)
+                    created_count += 1
+                    print(f"✓ 图片组记录已保存: {group_name} ({len(images)}张图片)")
+            
+            return jsonify({
+                'success': True,
+                'message': f'已成功创建 {created_count} 个图片组',
+                'created_count': created_count
+            })
+        except Exception as e:
+            return jsonify({'success': False, 'message': f'保存失败: {str(e)}'}), 500
+    
+    elif upload_type == 'image_group':
+        # 单个图片组上传
         images = data.get('images', [])
         group_name = data.get('group_name', f'图片组_{datetime.now().strftime("%Y%m%d%H%M%S")}')
         

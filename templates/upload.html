@@ -211,11 +211,34 @@
                               placeholder="发布标题：xxx，背景音乐：xxx，发布时间：xxx 等要求"></textarea>
                 </div>
                 
+                <!-- 分组方式选择 -->
+                <div class="form-group" style="margin-bottom: 15px;">
+                    <label class="form-label">📦 分组方式</label>
+                    <div style="display: flex; gap: 15px; flex-wrap: wrap; margin-top: 8px;">
+                        <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;">
+                            <input type="radio" name="image-group-mode" value="1" checked style="accent-color: #60a5fa;">
+                            <span>每1张一组</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;">
+                            <input type="radio" name="image-group-mode" value="2" style="accent-color: #60a5fa;">
+                            <span>每2张一组</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;">
+                            <input type="radio" name="image-group-mode" value="3" style="accent-color: #60a5fa;">
+                            <span>每3张一组</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;">
+                            <input type="radio" name="image-group-mode" value="5" style="accent-color: #60a5fa;">
+                            <span>每5张一组</span>
+                        </label>
+                    </div>
+                </div>
+                
                 <form id="image-group-form">
                     <div class="upload-zone" id="image-upload-zone" style="border: 2px dashed #60a5fa;">
                         <div class="upload-zone-icon">🖼️</div>
                         <div class="upload-zone-text">点击或拖拽图片到此处上传</div>
-                        <div class="upload-zone-hint">选择 1-5 张图片</div>
+                        <div class="upload-zone-hint">选择 1-30 张图片</div>
                         <input type="file" name="images" class="upload-input" id="image-input"
                                accept="image/*" multiple>
                     </div>
@@ -223,8 +246,9 @@
                 
                 <!-- 已选图片预览 -->
                 <div id="image-preview-area" class="selected-files" style="display: none; margin-top: 15px;">
-                    <h4>已选择的图片（<span id="image-count">0</span>/1-5张）：</h4>
-                    <div id="image-thumbnails" style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px;"></div>
+                    <h4>已选择的图片（<span id="image-count">0</span>/1-30张）：</h4>
+                    <div id="group-preview" style="margin: 10px 0; padding: 10px; background: #e3f2fd; border-radius: 6px; color: #1565c0;"></div>
+                    <div id="image-thumbnails" style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; max-height: 200px; overflow-y: auto;"></div>
                     <button type="button" class="btn btn-primary mt-2" id="start-image-upload-btn" disabled>开始上传</button>
                 </div>
                 
@@ -676,6 +700,32 @@
         let selectedImages = [];
         let imageCloudinaryConfig = null;
         
+        // 获取选中的分组方式
+        function getSelectedGroupSize() {
+            const radios = document.getElementsByName('image-group-mode');
+            for (const radio of radios) {
+                if (radio.checked) {
+                    return parseInt(radio.value);
+                }
+            }
+            return 1;
+        }
+        
+        // 计算并显示分组预览
+        function updateGroupPreview() {
+            const groupSize = getSelectedGroupSize();
+            const totalImages = selectedImages.length;
+            const numGroups = Math.ceil(totalImages / groupSize);
+            const groupPreview = document.getElementById('group-preview');
+            
+            if (totalImages > 0) {
+                groupPreview.innerHTML = `📊 共选择 ${totalImages} 张图片，将分为 <strong>${numGroups}</strong> 组（每组 ${groupSize} 张）`;
+                groupPreview.style.display = 'block';
+            } else {
+                groupPreview.style.display = 'none';
+            }
+        }
+        
         // 图片选择处理
         imageInput.addEventListener('change', function(e) {
             console.log('[DEBUG] 图片选择事件触发');
@@ -684,9 +734,9 @@
             );
             console.log('[DEBUG] 选中图片数:', files.length);
             
-            // 限制 3-5 张
-            if (files.length > 5) {
-                alert('最多只能选择 5 张图片');
+            // 限制最多30张
+            if (files.length > 30) {
+                alert('最多只能选择 30 张图片');
                 imageInput.value = '';
                 return;
             }
@@ -704,12 +754,16 @@
                     const reader = new FileReader();
                     reader.onload = function(e) {
                         const div = document.createElement('div');
-                        div.style.cssText = 'width: 80px; height: 80px; border-radius: 8px; overflow: hidden; border: 2px solid #60a5fa;';
+                        div.style.cssText = 'width: 60px; height: 60px; border-radius: 8px; overflow: hidden; border: 2px solid #60a5fa; flex-shrink: 0;';
                         div.innerHTML = `<img src="${e.target.result}" style="width: 100%; height: 100%; object-fit: cover;">`;
+                        div.title = file.name;
                         imageThumbnails.appendChild(div);
                     };
                     reader.readAsDataURL(file);
                 });
+                
+                // 更新分组预览
+                updateGroupPreview();
                 
                 // 根据数量启用/禁用上传按钮
                 if (files.length >= 1) {
@@ -720,6 +774,11 @@
             } else {
                 imagePreviewArea.style.display = 'none';
             }
+        });
+        
+        // 监听分组方式变化，更新预览
+        document.querySelectorAll('input[name="image-group-mode"]').forEach(radio => {
+            radio.addEventListener('change', updateGroupPreview);
         });
         
         // 点击上传区域触发文件选择
@@ -752,8 +811,8 @@
                 f.type.startsWith('image/')
             );
             
-            if (files.length > 5) {
-                alert('最多只能选择 5 张图片');
+            if (files.length > 30) {
+                alert('最多只能选择 30 张图片');
                 return;
             }
             
@@ -861,10 +920,14 @@
         // 开始上传图片组
         startImageUploadBtn.addEventListener('click', async function() {
             console.log('[DEBUG] 图片组上传按钮点击');
-            if (selectedImages.length < 1 || selectedImages.length > 5) {
-                alert('图片组需要 1-5 张图片');
+            if (selectedImages.length < 1 || selectedImages.length > 30) {
+                alert('图片组需要 1-30 张图片');
                 return;
             }
+            
+            const groupSize = getSelectedGroupSize();
+            const totalImages = selectedImages.length;
+            const numGroups = Math.ceil(totalImages / groupSize);
             
             startImageUploadBtn.disabled = true;
             startImageUploadBtn.textContent = '上传中...';
@@ -872,6 +935,12 @@
             imagePreviewArea.style.display = 'none';
             imageUploadProgressArea.style.display = 'block';
             imageUploadResult.innerHTML = '';
+            
+            // 显示分组预览信息
+            const groupInfoDiv = document.createElement('div');
+            groupInfoDiv.style.cssText = 'margin-bottom: 15px; padding: 10px; background: #e3f2fd; border-radius: 6px; color: #1565c0; font-weight: 500;';
+            groupInfoDiv.innerHTML = `📦 正在处理 ${totalImages} 张图片，分为 ${numGroups} 组上传（每组 ${groupSize} 张）`;
+            imageUploadResult.appendChild(groupInfoDiv);
             
             // 显示所有图片为上传中状态
             selectedImages.forEach((file, index) => {
@@ -936,12 +1005,31 @@
                 imageProgressBar.style.width = `${percent}%`;
             }
             
-            // 如果有成功上传的图片，保存到服务器
+            // 如果有成功上传的图片，根据分组方式批量保存到服务器
             if (uploadedImages.length > 0) {
-                const groupName = imageGroupNameInput.value.trim() || `图片组_${Date.now()}`;
                 const publishRequirements = document.getElementById('image-group-requirements').value.trim();
                 
+                // 显示分组保存开始
+                const saveInfoDiv = document.createElement('div');
+                saveInfoDiv.style.cssText = 'margin-top: 15px; padding: 10px; background: #fff3e0; border-radius: 6px; color: #ef6c00; font-weight: 500;';
+                saveInfoDiv.innerHTML = `💾 正在保存 ${numGroups} 个图片组到数据库...`;
+                imageUploadResult.appendChild(saveInfoDiv);
+                
                 try {
+                    // 构建批量分组数据
+                    const groups = [];
+                    for (let g = 0; g < numGroups; g++) {
+                        const startIdx = g * groupSize;
+                        const endIdx = Math.min(startIdx + groupSize, uploadedImages.length);
+                        const groupImages = uploadedImages.slice(startIdx, endIdx);
+                        
+                        groups.push({
+                            group_name: `图片组_${Date.now()}_${g + 1}`,
+                            images: groupImages,
+                            publish_requirements: publishRequirements || null
+                        });
+                    }
+                    
                     const response = await fetch('{{ url_for("api_save_upload") }}', {
                         method: 'POST',
                         headers: {
@@ -949,10 +1037,8 @@
                         },
                         credentials: 'same-origin',
                         body: JSON.stringify({
-                            type: 'image_group',
-                            group_name: groupName,
-                            images: uploadedImages,
-                            publish_requirements: publishRequirements || null
+                            type: 'image_group_batch',
+                            groups: groups
                         })
                     });
                     
@@ -974,7 +1060,7 @@
                         summary.style.fontWeight = '500';
                         summary.style.background = '#e8f5e9';
                         summary.style.color = '#2e7d32';
-                        summary.innerHTML = `🎉 图片组上传完成！${uploadedImages.length} 张图片`;
+                        summary.innerHTML = `🎉 图片组上传完成！${uploadedImages.length} 张图片已分为 ${saveResult.created_count || numGroups} 个图片组`;
                         imageUploadResult.appendChild(summary);
                     } else {
                         const errorDiv = document.createElement('div');
