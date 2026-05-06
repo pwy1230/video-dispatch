@@ -240,7 +240,7 @@ def api_save_upload():
         return jsonify({'success': False, 'message': '缺少参数'}), 400
     
     upload_type = data.get('type', 'video')
-    publish_requirements = data.get('publish_requirements', '').strip() or None
+    publish_requirements = (data.get('publish_requirements') or '').strip() or None
     
     if upload_type == 'image_group':
         # 图片组上传
