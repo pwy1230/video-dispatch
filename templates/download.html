@@ -956,7 +956,7 @@
                         </div>
                         <div class="download-item-actions">
                             <span class="screenshots-badge" data-screenshot-count="{{ record.video_id }}" style="display: none;">0</span>
-                            <button class="upload-screenshot-btn" onclick="openScreenshotModal({{ record.video_id }}, '{{ record.original_filename }}')">
+                            <button class="upload-screenshot-btn" data-video-id="{{ record.video_id }}" data-video-name="{{ record.original_filename|e }}">
                                 📤 上传截图
                             </button>
                             <a href="{{ url_for('download_file', video_id=record.video_id) }}" class="re-download-btn">
@@ -1657,8 +1657,26 @@
             if (!timeEl) return;
             
             const now = new Date();
-            const frozenTime = new Date(frozenUntil);
-            const remaining = Math.max(0, Math.floor((frozenTime - now) / 1000));
+            // 兼容 "2026-05-06 08:34:00" 格式
+            // 服务器存的是UTC时间（PythonAnywhere），替换空格为T并标记Z
+            let frozenStr = frozenUntil.trim().replace(' ', 'T');
+            if (!frozenStr.endsWith('Z') && !frozenStr.includes('+') && !frozenStr.includes('T00:00:00')) {
+                frozenStr += 'Z';
+            }
+            const frozenTime = new Date(frozenStr);
+            
+            if (isNaN(frozenTime.getTime())) {
+                // 解析失败，尝试直接用
+                const altTime = new Date(frozenUntil);
+                if (isNaN(altTime.getTime())) {
+                    timeEl.textContent = '--:--';
+                    return;
+                }
+                var finalFrozenTime = altTime;
+            } else {
+                var finalFrozenTime = frozenTime;
+            }
+            const remaining = Math.max(0, Math.floor((finalFrozenTime - now) / 1000));
             
             if (remaining <= 0) {
                 // 已过期
@@ -1720,6 +1738,16 @@
         document.addEventListener('DOMContentLoaded', function() {
             // 初始化冻结倒计时
             initFrozenTimers();
+            
+            // 绑定上传截图按钮（用事件委托，避免onclick内联的问题）
+            document.addEventListener('click', function(e) {
+                const btn = e.target.closest('.upload-screenshot-btn[data-video-id]');
+                if (btn) {
+                    const videoId = btn.dataset.videoId;
+                    const videoName = btn.dataset.videoName || '视频';
+                    openScreenshotModal(videoId, videoName);
+                }
+            });
             
             // 检查截图数量
             document.querySelectorAll('.download-item[data-video-id]').forEach(item => {
