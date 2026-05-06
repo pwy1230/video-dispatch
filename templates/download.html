@@ -1096,19 +1096,19 @@
 
         // 检查 URL 参数，是否需要自动打开截图模态框
         const urlParams = new URLSearchParams(window.location.search);
-        const openScreenshotModal = urlParams.get('open_screenshot_modal');
-        if (openScreenshotModal) {
+        const openScreenshotModalParam = urlParams.get('open_screenshot_modal');
+        if (openScreenshotModalParam) {
             // 清理 URL 参数
             const cleanUrl = window.location.pathname;
             window.history.replaceState({}, document.title, cleanUrl);
             // 异步获取视频信息并打开模态框
             setTimeout(async () => {
                 try {
-                    const response = await fetch(`/api/video/${openScreenshotModal}`);
+                    const response = await fetch(`/api/video/${openScreenshotModalParam}`);
                     if (response.ok) {
                         const data = await response.json();
                         if (data.video) {
-                            openScreenshotModal(openScreenshotModal, data.video.original_filename || '视频');
+                            openScreenshotModal(openScreenshotModalParam, data.video.original_filename || '视频');
                         }
                     }
                 } catch (e) {
