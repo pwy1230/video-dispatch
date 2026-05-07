@@ -18,7 +18,7 @@ load_dotenv()
 from werkzeug.utils import secure_filename
 
 from models import (
-    init_db, add_user, verify_user, get_user_by_id,
+    init_db, get_db, add_user, verify_user, get_user_by_id,
     get_all_users, delete_user, get_stats,
     add_video, get_available_videos, get_all_videos, unfreeze_expired_videos,
     get_video_by_id, assign_random_video, delete_video,
