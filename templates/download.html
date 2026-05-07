@@ -2162,7 +2162,7 @@
                     ` : ''}
                     
                     <button class="download-modal-btn" onclick="downloadVideo()">
-                        ⬇️ 下载视频
+                        ⬇️ 直接下载（新窗口打开）
                     </button>
                     <button class="download-modal-btn backup-btn" onclick="copyDownloadLink()">
                         📋 复制下载链接
@@ -2171,7 +2171,9 @@
                     <div class="download-modal-tip">
                         <div class="download-tip-icon">💡</div>
                         <div class="download-tip-text">
-                            下载没反应？点"复制下载链接"→粘贴到浏览器地址栏打开<br>
+                            手机下载方式：<br>
+                            ① 点"直接下载"→新窗口打开→等几秒自动下载<br>
+                            ② 点"复制下载链接"→粘贴到浏览器地址栏→回车下载<br>
                             保护期内请上传发布截图
                         </div>
                     </div>
@@ -2223,9 +2225,10 @@
             if (videoEl) {
                 var src = videoEl.getAttribute('src');
                 var downloadUrl = src.replace('/upload/', '/upload/fl_attachment/');
-                window.location.href = downloadUrl;
+                // 用新标签页打开，手机浏览器更可靠
+                window.open(downloadUrl, '_blank');
             } else {
-                window.location.href = '/api/serve-download/' + downloadModalVideoId;
+                window.open('/api/serve-download/' + downloadModalVideoId, '_blank');
             }
         }
         
