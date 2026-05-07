@@ -2087,23 +2087,41 @@
         
         // 保存单张图片
         function saveImage(url, filename) {
-            // 使用后端代理下载图片
+            // 防止重复点击
+            event.preventDefault();
+            event.stopPropagation();
+            
+            // 用后端代理下载，避免跨域
             fetch(`/api/serve-download-image?url=${encodeURIComponent(url)}&filename=${encodeURIComponent(filename)}`)
-                .then(resp => {
-                    if (resp.ok) return resp.blob();
-                    throw new Error('下载失败');
+                .then(response => {
+                    if (!response.ok) throw new Error('下载失败');
+                    return response.blob();
                 })
                 .then(blob => {
+                    // 创建 blob URL
                     const blobUrl = URL.createObjectURL(blob);
+                    
+                    // 创建隐藏的 a 元素
                     const a = document.createElement('a');
                     a.href = blobUrl;
                     a.download = filename;
+                    a.style.display = 'none';
+                    
+                    // 添加到 DOM
+                    document.body.appendChild(a);
+                    
+                    // 触发点击
                     a.click();
-                    URL.revokeObjectURL(blobUrl);
+                    
+                    // 延迟移除元素和释放 blob URL
+                    setTimeout(() => {
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(blobUrl);
+                    }, 100);
                 })
                 .catch(err => {
                     console.error('图片下载失败:', err);
-                    // 备用方案：直接打开图片让用户手动保存
+                    // 回退：直接打开图片让用户手动长按保存
                     window.open(url, '_blank');
                 });
         }
