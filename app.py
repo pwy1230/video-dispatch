@@ -1036,19 +1036,16 @@ def api_toggle_announcement(announcement_id):
 def api_delete_announcement(announcement_id):
     """API: 删除公告"""
     try:
-        # 获取公告信息（用于删除 Cloudinary 图片）
+        # 获取公告信息
         announcement = get_announcement_by_id(announcement_id)
         
         if not announcement:
             return jsonify({'success': False, 'message': '公告不存在'}), 404
         
-        # 删除 Cloudinary 上的图片（如果存在）
-        if USE_CLOUDINARY and announcement.get('image_cloudinary_id'):
-            try:
-                cloudinary.uploader.destroy(announcement['image_cloudinary_id'])
-                print(f"✓ 已删除 Cloudinary 上的公告图片: {announcement['image_cloudinary_id']}")
-            except Exception as e:
-                print(f"⚠ 删除 Cloudinary 图片失败: {e}")
+        # 注意：跳过 Cloudinary 图片删除
+        # Cloudinary 删除操作在 PythonAnywhere 免费版非常耗时
+        # 图片如需清理请定期手动在 Cloudinary 控制台删除
+        print(f"⚠ 跳过 Cloudinary 图片删除: {announcement.get('image_cloudinary_id')}")
         
         success = delete_announcement(announcement_id)
         
@@ -1069,13 +1066,11 @@ def admin_delete_video(video_id):
     """删除视频"""
     video = get_video_by_id(video_id)
     if video:
-        # 删除 Cloudinary 上的文件（如果使用）
-        if USE_CLOUDINARY and video.get('cloudinary_public_id'):
-            try:
-                cloudinary.uploader.destroy(video['cloudinary_public_id'])
-                print(f"✓ 已删除 Cloudinary 上的文件: {video['cloudinary_public_id']}")
-            except Exception as e:
-                print(f"⚠ 删除 Cloudinary 文件失败: {e}")
+        # 注意：跳过 Cloudinary 文件删除
+        # Cloudinary 删除操作在 PythonAnywhere 免费版非常耗时
+        # 文件如需清理请定期手动在 Cloudinary 控制台删除
+        if video.get('cloudinary_public_id'):
+            print(f"⚠ 跳过 Cloudinary 文件删除: {video['cloudinary_public_id']}")
         
         # 删除本地文件（如果存在）
         file_path = os.path.join(UPLOAD_FOLDER, video.get('stored_filename', ''))
@@ -1183,18 +1178,15 @@ def admin_delete_image_group(video_id):
         flash('图片组不存在', 'error')
         return redirect(url_for('admin_dashboard'))
     
-    # 删除 Cloudinary 上的图片
+    # 删除图片组及其关联数据
     deleted, public_ids = delete_image_group(video_id)
     
     if deleted:
-        # 删除 Cloudinary 上的文件
-        if USE_CLOUDINARY:
-            for public_id in public_ids:
-                try:
-                    cloudinary.uploader.destroy(public_id, resource_type='image')
-                    print(f"✓ 已删除 Cloudinary 上的图片: {public_id}")
-                except Exception as e:
-                    print(f"⚠ 删除 Cloudinary 图片失败: {e}")
+        # 注意：跳过 Cloudinary 图片删除
+        # Cloudinary 删除操作在 PythonAnywhere 免费版非常耗时
+        # 图片如需清理请定期手动在 Cloudinary 控制台删除
+        if public_ids:
+            print(f"⚠ 跳过 Cloudinary 图片删除: {public_ids}")
         
         flash('图片组已删除', 'success')
     else:
@@ -1247,14 +1239,11 @@ def api_batch_delete():
                 deleted, public_ids = delete_image_group(item_id)
                 
                 if deleted:
-                    # 删除 Cloudinary 上的图片文件
-                    if USE_CLOUDINARY:
-                        for public_id in public_ids:
-                            try:
-                                cloudinary.uploader.destroy(public_id, resource_type='image')
-                                print(f"✓ [批量] 已删除 Cloudinary 上的图片: {public_id}")
-                            except Exception as e:
-                                print(f"⚠ [批量] 删除 Cloudinary 图片失败: {e}")
+                    # 注意：跳过 Cloudinary 图片删除
+                    # Cloudinary 删除操作在 PythonAnywhere 免费版非常耗时
+                    # 图片如需清理请定期手动在 Cloudinary 控制台删除
+                    if public_ids:
+                        print(f"⚠ [批量] 跳过 Cloudinary 图片删除: {public_ids}")
                     
                     deleted_count += 1
                     print(f"✓ [批量] 已删除图片组: {video['original_filename']}")
@@ -1263,13 +1252,11 @@ def api_batch_delete():
             
             elif item_type == 'video':
                 # 删除单个视频
-                # 删除 Cloudinary 上的文件
-                if USE_CLOUDINARY and video.get('cloudinary_public_id'):
-                    try:
-                        cloudinary.uploader.destroy(video['cloudinary_public_id'])
-                        print(f"✓ [批量] 已删除 Cloudinary 上的视频: {video['cloudinary_public_id']}")
-                    except Exception as e:
-                        print(f"⚠ [批量] 删除 Cloudinary 文件失败: {e}")
+                # 注意：跳过 Cloudinary 文件删除
+                # Cloudinary 删除操作在 PythonAnywhere 免费版非常耗时
+                # 文件如需清理请定期手动在 Cloudinary 控制台删除
+                if video.get('cloudinary_public_id'):
+                    print(f"⚠ [批量] 跳过 Cloudinary 文件删除: {video['cloudinary_public_id']}")
                 
                 # 删除本地文件
                 file_path = os.path.join(UPLOAD_FOLDER, video.get('stored_filename', ''))
