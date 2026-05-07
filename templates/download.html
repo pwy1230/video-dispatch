@@ -74,19 +74,48 @@
         .download-btn {
             display: block;
             width: 100%;
-            padding: 24px 32px;
-            font-size: 1.4rem;
+            padding: 26px 32px;
+            font-size: 1.5rem;
             font-weight: 700;
             border-radius: 20px;
-            background: linear-gradient(135deg, var(--success) 0%, #059669 100%);
+            background: linear-gradient(135deg, #10b981 0%, #059669 50%, #047857 100%);
             color: white;
             border: none;
             cursor: pointer;
             text-decoration: none;
-            box-shadow: 0 10px 40px rgba(16, 185, 129, 0.4);
+            box-shadow: 0 8px 32px rgba(16, 185, 129, 0.4);
             transition: all 0.3s ease;
             position: relative;
             overflow: hidden;
+            animation: float 3s ease-in-out infinite;
+        }
+        
+        /* 脉冲发光动画 */
+        .pulse-glow {
+            animation: float 3s ease-in-out infinite, pulse-glow 2s ease-in-out infinite;
+        }
+        
+        @keyframes pulse-glow {
+            0%, 100% {
+                box-shadow: 0 8px 32px rgba(16, 185, 129, 0.4), 
+                            0 0 20px rgba(16, 185, 129, 0.2),
+                            0 0 40px rgba(16, 185, 129, 0.1);
+            }
+            50% {
+                box-shadow: 0 8px 40px rgba(16, 185, 129, 0.6), 
+                            0 0 40px rgba(16, 185, 129, 0.4),
+                            0 0 60px rgba(16, 185, 129, 0.3);
+            }
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-8px); }
+        }
+        
+        .btn-icon {
+            font-size: 1.6rem;
+            margin-right: 8px;
         }
         
         .download-btn::before {
@@ -106,8 +135,9 @@
         }
         
         .download-btn:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 15px 50px rgba(16, 185, 129, 0.5);
+            transform: translateY(-4px) scale(1.02);
+            box-shadow: 0 12px 48px rgba(16, 185, 129, 0.6), 
+                        0 0 50px rgba(16, 185, 129, 0.5);
         }
         
         .download-btn:active {
@@ -119,6 +149,7 @@
             box-shadow: none;
             cursor: not-allowed;
             transform: none;
+            animation: none;
         }
         
         .download-btn:disabled::before {
@@ -1204,8 +1235,8 @@
             
             <!-- 下载按钮 -->
             {% if can_download and stats.available_total > 0 %}
-            <a href="{{ url_for('download_action') }}" class="download-btn" id="main-download-btn">
-                <span>⬇️</span> 随机下载视频/图片组
+            <a href="{{ url_for('download_action') }}" class="download-btn pulse-glow" id="main-download-btn">
+                <span class="btn-icon">🎯</span> 点我下载素材
             </a>
             {% elif not can_download %}
             <button class="download-btn" disabled>
