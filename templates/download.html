@@ -1234,10 +1234,20 @@
             {% endif %}
             
             <!-- 下载按钮 -->
+            {% if remaining_downloads is defined %}
+            <div style="text-align: center; margin-bottom: 16px; color: rgba(255,255,255,0.6); font-size: 0.9rem;">
+                今日剩余下载次数：<span style="color: #10b981; font-weight: 700; font-size: 1.1rem;">{{ remaining_downloads }}</span> / 10
+            </div>
+            {% endif %}
+            
             {% if can_download and stats.available_total > 0 %}
             <a href="{{ url_for('download_action') }}" class="download-btn pulse-glow" id="main-download-btn">
                 <span class="btn-icon">🎯</span> 点我下载素材
             </a>
+            {% elif remaining_downloads is defined and remaining_downloads <= 0 %}
+            <button class="download-btn" disabled>
+                <span>✅</span> 今日次数已用完
+            </button>
             {% elif not can_download %}
             <button class="download-btn" disabled>
                 <span>✅</span> 今日已下载

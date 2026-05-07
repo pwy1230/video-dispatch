@@ -432,7 +432,7 @@ def get_video_by_id(video_id):
 
 
 def check_daily_limit(client_identifier):
-    """检查同一设备今日是否已达下载上限 - 每天最多3次"""
+    """检查同一设备今日是否已达下载上限 - 每天最多10次"""
     conn = get_db()
     cursor = conn.cursor()
     
@@ -447,7 +447,7 @@ def check_daily_limit(client_identifier):
     count = cursor.fetchone()[0]
     conn.close()
     
-    return count >= 3
+    return count >= 10
 
 
 def assign_random_video(client_identifier, device_info=None, user_id=None):

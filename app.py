@@ -626,6 +626,16 @@ def download_page():
     can_download = not check_daily_limit(client_id)
     announcements = get_active_announcements()
     
+    # 计算今日剩余下载次数
+    today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    today_str = today_start.strftime('%Y-%m-%d %H:%M:%S')
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('SELECT COUNT(*) FROM download_records WHERE client_identifier = ? AND downloaded_at >= ?', (client_id, today_str))
+    today_count = cursor.fetchone()[0]
+    conn.close()
+    remaining_downloads = 10 - today_count
+    
     for r in records:
         r['downloaded_fmt'] = format_datetime(r['downloaded_at'])
     
@@ -634,6 +644,7 @@ def download_page():
                            stats=stats, 
                            records=records,
                            can_download=can_download,
+                           remaining_downloads=remaining_downloads,
                            announcements=announcements)
 
 
@@ -651,7 +662,7 @@ def download_action():
     device_info = get_device_info()
     
     if check_daily_limit(client_id):
-        flash('今日您已下载过一次视频，请明天再来哦！', 'warning')
+        flash('今日下载次数已达上限（10次），请明天再来哦！', 'warning')
         return redirect(url_for('download_page'))
     
     user_id = session.get('user_id') if is_logged_in() else None
@@ -801,10 +812,21 @@ def api_download_status():
     can_download = not check_daily_limit(client_id)
     stats = get_stats()
     
+    # 计算今日剩余下载次数
+    today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    today_str = today_start.strftime('%Y-%m-%d %H:%M:%S')
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('SELECT COUNT(*) FROM download_records WHERE client_identifier = ? AND downloaded_at >= ?', (client_id, today_str))
+    today_count = cursor.fetchone()[0]
+    conn.close()
+    remaining_downloads = 10 - today_count
+    
     return jsonify({
         'can_download': can_download,
+        'remaining_downloads': remaining_downloads,
         'available_videos': stats['available_videos'],
-        'message': '今日已下载' if not can_download else '可以下载'
+        'message': f'今日剩余{remaining_downloads}次' if not can_download else '可以下载'
     })
 
 
