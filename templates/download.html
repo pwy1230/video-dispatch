@@ -2161,14 +2161,17 @@
                     </div>
                     ` : ''}
                     
-                    <button class="download-modal-btn backup-btn" onclick="downloadVideo()">
-                        ⬇️ 下载失败？点此重试
+                    <button class="download-modal-btn" onclick="downloadVideo()">
+                        ⬇️ 下载视频
+                    </button>
+                    <button class="download-modal-btn backup-btn" onclick="copyDownloadLink()">
+                        📋 复制下载链接
                     </button>
                     
                     <div class="download-modal-tip">
                         <div class="download-tip-icon">💡</div>
                         <div class="download-tip-text">
-                            建议使用手机自带浏览器（微信/Safari）长按保存<br>
+                            下载没反应？点"复制下载链接"→粘贴到浏览器地址栏打开<br>
                             保护期内请上传发布截图
                         </div>
                     </div>
@@ -2213,10 +2216,40 @@
             setInterval(updateTimer, 1000);
         }
         
-        // 下载视频（通过后端代理）
+        // 下载视频（直接Cloudinary链接）
         function downloadVideo() {
             if (!downloadModalVideoId) return;
-            window.location.href = `/api/serve-download/${downloadModalVideoId}`;
+            var videoEl = document.querySelector('.video-preview-box video source');
+            if (videoEl) {
+                var src = videoEl.getAttribute('src');
+                var downloadUrl = src.replace('/upload/', '/upload/fl_attachment/');
+                window.location.href = downloadUrl;
+            } else {
+                window.location.href = '/api/serve-download/' + downloadModalVideoId;
+            }
+        }
+        
+        // 复制下载链接
+        function copyDownloadLink() {
+            var videoEl = document.querySelector('.video-preview-box video source');
+            if (videoEl) {
+                var src = videoEl.getAttribute('src');
+                var downloadUrl = src.replace('/upload/', '/upload/fl_attachment/');
+                if (navigator.clipboard) {
+                    navigator.clipboard.writeText(downloadUrl).then(function() {
+                        alert('链接已复制！请粘贴到浏览器地址栏打开即可下载');
+                    });
+                } else {
+                    // 旧浏览器备选
+                    var input = document.createElement('input');
+                    input.value = downloadUrl;
+                    document.body.appendChild(input);
+                    input.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(input);
+                    alert('链接已复制！请粘贴到浏览器地址栏打开即可下载');
+                }
+            }
         }
         
         // 保存单张图片
