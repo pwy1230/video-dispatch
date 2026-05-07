@@ -839,6 +839,230 @@
                 padding: 16px;
             }
         }
+        
+        /* ========== 下载模态框样式 ========== */
+        .download-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .download-modal.active {
+            display: flex;
+        }
+        
+        .download-modal-wrapper {
+            background: var(--bg-card);
+            border-radius: 20px;
+            padding: 28px;
+            width: 100%;
+            max-width: 480px;
+            max-height: 85vh;
+            overflow-y: auto;
+            position: relative;
+        }
+        
+        .download-modal-close {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.15);
+            border: none;
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2001;
+            transition: background 0.2s;
+        }
+        
+        .download-modal-close:hover {
+            background: rgba(255, 255, 255, 0.25);
+        }
+        
+        .download-modal-header {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+        
+        .download-modal-icon {
+            font-size: 4rem;
+            margin-bottom: 12px;
+        }
+        
+        .download-modal-title {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 6px;
+            word-break: break-all;
+        }
+        
+        .download-modal-subtitle {
+            font-size: 1rem;
+            color: var(--text-secondary);
+        }
+        
+        .download-modal-timer {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 14px;
+            background: linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(220, 38, 38, 0.1) 100%);
+            border: 2px solid rgba(239, 68, 68, 0.4);
+            border-radius: 12px;
+            margin-bottom: 20px;
+            font-size: 1rem;
+            color: #f87171;
+        }
+        
+        .download-timer-icon {
+            font-size: 1.2rem;
+        }
+        
+        .download-timer-time {
+            font-weight: 700;
+            font-size: 1.3rem;
+            font-family: monospace;
+            color: #ef4444;
+        }
+        
+        .download-modal-btn {
+            display: block;
+            width: 100%;
+            padding: 20px 24px;
+            font-size: 1.3rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--success) 0%, #059669 100%);
+            color: white;
+            border: none;
+            border-radius: 16px;
+            cursor: pointer;
+            text-align: center;
+            box-shadow: 0 8px 24px rgba(16, 185, 129, 0.4);
+            transition: all 0.3s;
+            margin-bottom: 16px;
+        }
+        
+        .download-modal-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 12px 32px rgba(16, 185, 129, 0.5);
+        }
+        
+        .download-modal-btn:active {
+            transform: translateY(-1px);
+        }
+        
+        .download-modal-tip {
+            padding: 14px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            text-align: center;
+        }
+        
+        .download-tip-icon {
+            font-size: 1.2rem;
+            margin-bottom: 6px;
+        }
+        
+        .download-tip-text {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+        
+        /* 图片列表样式 */
+        .download-images-list {
+            max-height: 400px;
+            overflow-y: auto;
+            margin-bottom: 16px;
+        }
+        
+        .download-image-item {
+            display: flex;
+            gap: 14px;
+            padding: 14px;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 12px;
+            margin-bottom: 12px;
+            align-items: center;
+        }
+        
+        .download-image-item:last-child {
+            margin-bottom: 0;
+        }
+        
+        .download-image-item img {
+            width: 70px;
+            height: 70px;
+            object-fit: cover;
+            border-radius: 8px;
+            flex-shrink: 0;
+        }
+        
+        .download-image-info {
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .download-image-name {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
+        .download-image-btn {
+            padding: 10px 16px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .download-image-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+        }
+        
+        /* 移动端适配 */
+        @media (max-width: 480px) {
+            .download-modal-wrapper {
+                padding: 20px;
+                border-radius: 16px;
+            }
+            
+            .download-modal-title {
+                font-size: 1.2rem;
+            }
+            
+            .download-modal-btn {
+                padding: 18px 20px;
+                font-size: 1.1rem;
+            }
+        }
     </style>
 </head>
 <body>
@@ -1731,6 +1955,196 @@
             if (e.key === 'Escape') {
                 closeScreenshotModal();
                 closeImageViewer();
+                closeDownloadModal();
+            }
+        });
+        
+        // ========== 下载模态框功能 ==========
+        let downloadModalVideoId = null;
+        let downloadModalType = 'video';
+        let downloadModalImages = [];
+        
+        // 关闭下载模态框
+        function closeDownloadModal() {
+            document.getElementById('download-modal').classList.remove('active');
+            document.body.style.overflow = '';
+        }
+        
+        // 打开下载模态框
+        function openDownloadModal(videoId, type, data) {
+            downloadModalVideoId = videoId;
+            downloadModalType = type;
+            
+            const modal = document.getElementById('download-modal');
+            const content = document.getElementById('download-modal-content');
+            
+            if (type === 'image_group') {
+                // 图片组模式
+                downloadModalImages = data.images || [];
+                content.innerHTML = `
+                    <div class="download-modal-header">
+                        <div class="download-modal-icon">📷</div>
+                        <h2 class="download-modal-title">${data.name || '图片组'}</h2>
+                        <p class="download-modal-subtitle">共 ${downloadModalImages.length} 张图片</p>
+                    </div>
+                    
+                    <div class="download-images-list">
+                        ${downloadModalImages.map((img, idx) => `
+                            <div class="download-image-item">
+                                <img src="${img.cloudinary_url}" alt="${img.original_filename}" loading="lazy">
+                                <div class="download-image-info">
+                                    <span class="download-image-name">${img.original_filename}</span>
+                                    <button class="download-image-btn" onclick="saveImage('${img.cloudinary_url}', '${img.original_filename}')">
+                                        💾 保存图片
+                                    </button>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                    
+                    <div class="download-modal-tip">
+                        <div class="download-tip-icon">💡</div>
+                        <div class="download-tip-text">
+                            <strong>手机用户</strong>：长按图片可弹出保存菜单<br>
+                            <strong>电脑用户</strong>：点击「保存图片」按钮下载
+                        </div>
+                    </div>
+                `;
+            } else {
+                // 视频模式
+                content.innerHTML = `
+                    <div class="download-modal-header">
+                        <div class="download-modal-icon">🎬</div>
+                        <h2 class="download-modal-title">${data.name || '视频'}</h2>
+                        <p class="download-modal-subtitle">视频已分配给您</p>
+                    </div>
+                    
+                    ${data.frozen_until ? `
+                    <div class="download-modal-timer">
+                        <span class="download-timer-icon">⏱️</span>
+                        <span>保护期剩余：</span>
+                        <span class="download-timer-time" id="download-modal-timer" data-frozen="${data.frozen_until}">--:--</span>
+                    </div>
+                    ` : ''}
+                    
+                    <button class="download-modal-btn" onclick="downloadVideo()">
+                        ⬇️ 点击下载视频
+                    </button>
+                    
+                    <div class="download-modal-tip">
+                        <div class="download-tip-icon">💡</div>
+                        <div class="download-tip-text">
+                            点击按钮后，视频会保存到您的设备<br>
+                            保护期内请上传发布截图
+                        </div>
+                    </div>
+                `;
+            }
+            
+            modal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+            
+            // 如果是视频，启动倒计时
+            if (type !== 'image_group' && data.frozen_until) {
+                startDownloadModalTimer();
+            }
+        }
+        
+        // 下载模态框内的倒计时
+        function startDownloadModalTimer() {
+            const timerEl = document.getElementById('download-modal-timer');
+            if (!timerEl) return;
+            
+            function updateTimer() {
+                const frozenUntil = timerEl.dataset.frozen;
+                const now = new Date();
+                let frozenStr = frozenUntil.trim().replace(' ', 'T');
+                if (!frozenStr.endsWith('Z') && !frozenStr.includes('+')) {
+                    frozenStr += 'Z';
+                }
+                const frozenTime = new Date(frozenStr);
+                const remaining = Math.max(0, Math.floor((frozenTime - now) / 1000));
+                
+                if (remaining <= 0) {
+                    timerEl.textContent = '00:00';
+                    return;
+                }
+                
+                const mins = Math.floor(remaining / 60);
+                const secs = remaining % 60;
+                timerEl.textContent = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+            }
+            
+            updateTimer();
+            setInterval(updateTimer, 1000);
+        }
+        
+        // 下载视频（通过后端代理）
+        function downloadVideo() {
+            if (!downloadModalVideoId) return;
+            window.location.href = `/api/serve-download/${downloadModalVideoId}`;
+        }
+        
+        // 保存单张图片
+        function saveImage(url, filename) {
+            // 使用后端代理下载图片
+            fetch(`/api/serve-download-image?url=${encodeURIComponent(url)}&filename=${encodeURIComponent(filename)}`)
+                .then(resp => {
+                    if (resp.ok) return resp.blob();
+                    throw new Error('下载失败');
+                })
+                .then(blob => {
+                    const blobUrl = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = blobUrl;
+                    a.download = filename;
+                    a.click();
+                    URL.revokeObjectURL(blobUrl);
+                })
+                .catch(err => {
+                    console.error('图片下载失败:', err);
+                    // 备用方案：直接打开图片让用户手动保存
+                    window.open(url, '_blank');
+                });
+        }
+        
+        // 页面加载时检查是否有下载参数
+        document.addEventListener('DOMContentLoaded', function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const downloadedId = urlParams.get('downloaded');
+            const downloadedType = urlParams.get('downloaded_type');
+            
+            if (downloadedId) {
+                // 获取视频/图片组信息
+                fetch(`/api/video/${downloadedId}`)
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.success) {
+                            const item = data.video;
+                            
+                            if (downloadedType === 'image_group') {
+                                // 获取图片组图片
+                                fetch(`/api/image-group/${downloadedId}`)
+                                    .then(r => r.json())
+                                    .then(imgData => {
+                                        if (imgData.success) {
+                                            openDownloadModal(downloadedId, 'image_group', {
+                                                name: item.original_filename,
+                                                images: imgData.images
+                                            });
+                                        }
+                                    });
+                            } else {
+                                openDownloadModal(downloadedId, 'video', {
+                                    name: item.original_filename,
+                                    frozen_until: item.frozen_until
+                                });
+                            }
+                        }
+                    });
+                
+                // 清除 URL 参数（不刷新页面）
+                history.replaceState(null, '', window.location.pathname);
             }
         });
         
@@ -1756,5 +2170,13 @@
             });
         });
     </script>
+    
+    <!-- ========== 下载模态框 ========== -->
+    <div class="download-modal" id="download-modal">
+        <div class="download-modal-wrapper" id="download-modal-content">
+            <!-- 内容由 JS 动态填充 -->
+        </div>
+        <button class="download-modal-close" onclick="closeDownloadModal()">×</button>
+    </div>
 </body>
 </html>

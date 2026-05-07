@@ -662,36 +662,97 @@ def download_action():
         # 检查是否是图片组
         if video.get('type') == 'image_group':
             flash(f'恭喜！获得一组图片 "{video["original_filename"]}"', 'success')
-            return redirect(url_for('view_image_group', video_id=video['id']))
+            # 图片组也跳回下载页，弹出模态框
+            return redirect(url_for('download_page', downloaded=video['id'], downloaded_type='image_group'))
         
         flash(f'下载成功！视频 "{video["original_filename"]}" 已在保护期，请在10分钟内上传发布截图', 'success')
         
-        # 直接重定向到 Cloudinary 下载链接，节省 CPU 秒数
-        if USE_CLOUDINARY and video.get('cloudinary_url'):
-            download_url = get_cloudinary_download_url(
-                video['cloudinary_url'], 
-                video['original_filename']
-            )
-            if download_url:
-                return redirect(download_url)
-        
-        # 如果没有 Cloudinary，回退到下载页面，同时传递冻结信息
-        return redirect(url_for('download_success', video_id=video['id'], frozen_until=video.get('frozen_until')))
+        # 跳回下载页，带 downloaded 参数，触发下载模态框
+        return redirect(url_for('download_page', downloaded=video['id']))
     else:
         flash('暂无可下载的视频，请联系管理员上传新视频', 'warning')
         return redirect(url_for('download_page'))
 
 
-@app.route('/download/success/<int:video_id>')
-def download_success(video_id):
-    """下载成功页面（用于本地存储的回退）"""
-    frozen_until = request.args.get('frozen_until')
+@app.route('/api/serve-download/<int:video_id>')
+def api_serve_download(video_id):
+    """
+    后端代理下载 - 将 Cloudinary 视频文件流式转发给用户
+    设置 Content-Disposition: attachment，触发浏览器下载
+    解决手机浏览器无法识别 fl_attachment URL 的问题
+    """
+    import requests
+    
     video = get_video_by_id(video_id)
     if not video:
-        flash('视频不存在', 'error')
-        return redirect(url_for('download_page'))
+        return jsonify({'success': False, 'message': '视频不存在'}), 404
     
-    return render_template('download_success.html', video=video, frozen_until=frozen_until)
+    # 获取 Cloudinary URL
+    cloudinary_url = video.get('cloudinary_url')
+    if not cloudinary_url:
+        return jsonify({'success': False, 'message': '视频文件不存在'}), 404
+    
+    original_filename = video['original_filename']
+    
+    try:
+        # 从 Cloudinary 下载文件
+        response = requests.get(cloudinary_url, stream=True, timeout=120)
+        response.raise_for_status()
+        
+        # 获取文件类型
+        content_type = response.headers.get('Content-Type', 'application/octet-stream')
+        
+        # Flask Response，流式返回文件，设置 Content-Disposition 强制下载
+        from flask import Response
+        return Response(
+            response.iter_content(chunk_size=8192),
+            content_type=content_type,
+            headers={
+                'Content-Disposition': f'attachment; filename="{original_filename}"',
+                'Content-Length': response.headers.get('Content-Length', ''),
+                'Cache-Control': 'no-cache'
+            }
+        )
+    except requests.exceptions.RequestException as e:
+        print(f"从 Cloudinary 下载失败: {e}")
+        return jsonify({'success': False, 'message': f'下载失败: {str(e)}'}), 500
+
+
+@app.route('/api/serve-download-image')
+def api_serve_download_image():
+    """
+    后端代理下载图片 - 将 Cloudinary 图片文件转发给用户
+    用于图片组中单张图片的下载
+    """
+    import requests
+    
+    image_url = request.args.get('url')
+    filename = request.args.get('filename', 'image.jpg')
+    
+    if not image_url:
+        return jsonify({'success': False, 'message': '缺少图片URL'}), 400
+    
+    try:
+        # 从 Cloudinary 下载图片
+        response = requests.get(image_url, stream=True, timeout=30)
+        response.raise_for_status()
+        
+        # 获取文件类型
+        content_type = response.headers.get('Content-Type', 'image/jpeg')
+        
+        # Flask Response，返回图片 blob
+        from flask import Response
+        return Response(
+            response.iter_content(chunk_size=4096),
+            content_type=content_type,
+            headers={
+                'Content-Disposition': f'attachment; filename="{filename}"',
+                'Cache-Control': 'no-cache'
+            }
+        )
+    except requests.exceptions.RequestException as e:
+        print(f"从 Cloudinary 下载图片失败: {e}")
+        return jsonify({'success': False, 'message': f'下载失败: {str(e)}'}), 500
 
 
 @app.route('/download/file/<int:video_id>')
