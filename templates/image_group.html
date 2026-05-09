@@ -548,7 +548,38 @@
                 btn.innerHTML = '⏳ 下载中...';
                 btn.disabled = true;
                 
-                // 方案1: 用 fetch + blob + a.download 触发下载
+                // 方案1: 通过后端代理下载（解决跨域问题，最可靠）
+                try {
+                    const proxyUrl = '/api/proxy-image?url=' + encodeURIComponent(url) + '&filename=' + encodeURIComponent(filename || 'image.jpg');
+                    const response = await fetch(proxyUrl);
+                    if (response.ok) {
+                        const blob = await response.blob();
+                        const blobUrl = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = blobUrl;
+                        a.download = filename || 'image.jpg';
+                        a.style.display = 'none';
+                        document.body.appendChild(a);
+                        a.click();
+                        setTimeout(() => {
+                            document.body.removeChild(a);
+                            URL.revokeObjectURL(blobUrl);
+                        }, 1000);
+                        
+                        btn.innerHTML = '✅ 已保存';
+                        btn.classList.add('saved');
+                        setTimeout(() => {
+                            btn.innerHTML = originalText;
+                            btn.classList.remove('saved');
+                            btn.disabled = false;
+                        }, 2000);
+                        return;
+                    }
+                } catch (proxyErr) {
+                    console.warn('代理下载失败，尝试直接下载:', proxyErr);
+                }
+                
+                // 方案2: 直接用 fetch + blob（可能跨域失败）
                 try {
                     const response = await fetch(url, { mode: 'cors' });
                     if (response.ok) {
@@ -575,38 +606,16 @@
                         return;
                     }
                 } catch (fetchErr) {
-                    console.warn('fetch下载失败，尝试备用方案:', fetchErr);
+                    console.warn('fetch下载失败:', fetchErr);
                 }
                 
-                // 方案2: 用 Cloudinary fl_attachment 参数强制下载
-                try {
-                    const downloadUrl = url.includes('cloudinary') 
-                        ? url.replace('/upload/', '/upload/fl_attachment/') 
-                        : url;
-                    const a = document.createElement('a');
-                    a.href = downloadUrl;
-                    a.download = filename || 'image.jpg';
-                    a.style.display = 'none';
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    
-                    btn.innerHTML = '✅ 已触发下载';
-                    btn.classList.add('saved');
-                    setTimeout(() => {
-                        btn.innerHTML = originalText;
-                        btn.classList.remove('saved');
-                        btn.disabled = false;
-                    }, 2000);
-                } catch (e2) {
-                    // 方案3: 新窗口打开让用户手动保存
-                    window.open(url, '_blank');
-                    btn.innerHTML = '👆 长按图片保存';
-                    setTimeout(() => {
-                        btn.innerHTML = originalText;
-                    }, 3000);
-                    btn.disabled = false;
-                }
+                // 方案3: 新窗口打开让用户手动保存
+                window.open(url, '_blank');
+                btn.innerHTML = '👆 长按图片保存';
+                setTimeout(() => {
+                    btn.innerHTML = originalText;
+                }, 3000);
+                btn.disabled = false;
                 
             } catch (err) {
                 console.error('保存失败:', err);

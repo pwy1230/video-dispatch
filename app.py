@@ -9,7 +9,7 @@ import uuid
 import tempfile
 import shutil
 from datetime import datetime, timedelta
-from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
+from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, send_file, Response
 
 # 加载 .env 环境变量
 from dotenv import load_dotenv
@@ -803,6 +803,42 @@ def download_file(video_id):
     
     flash('视频文件不存在', 'error')
     return redirect(url_for('download_page'))
+
+
+@app.route('/api/proxy-image')
+def proxy_image():
+    """代理下载图片 - 解决手机浏览器跨域下载问题"""
+    import urllib.request
+    
+    url = request.args.get('url', '')
+    filename = request.args.get('filename', 'image.jpg')
+    
+    if not url:
+        return jsonify({'error': '缺少url参数'}), 400
+    
+    # 安全检查：只允许Cloudinary的URL
+    if 'cloudinary' not in url and 'res.cloudinary.com' not in url:
+        return jsonify({'error': '仅支持Cloudinary图片'}), 403
+    
+    try:
+        req = urllib.request.Request(url, headers={
+            'User-Agent': 'Mozilla/5.0 (compatible; VideoDispatch/1.0)'
+        })
+        resp = urllib.request.urlopen(req, timeout=30)
+        image_data = resp.read()
+        content_type = resp.headers.get('Content-Type', 'image/jpeg')
+        
+        return Response(
+            image_data,
+            mimetype=content_type,
+            headers={
+                'Content-Disposition': f'attachment; filename="{filename}"',
+                'Cache-Control': 'public, max-age=86400',
+                'Access-Control-Allow-Origin': '*'
+            }
+        )
+    except Exception as e:
+        return jsonify({'error': f'下载失败: {str(e)}'}), 500
 
 
 @app.route('/api/download/status')
