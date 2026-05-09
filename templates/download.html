@@ -1163,6 +1163,37 @@
             text-align: center;
         }
         
+        /* 保存到相册按钮 */
+        .save-to-album-btn {
+            display: block;
+            width: calc(100% - 24px);
+            margin: 0 auto 12px;
+            padding: 14px 20px;
+            font-size: 1rem;
+            font-weight: 700;
+            border: none;
+            border-radius: 25px;
+            background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%);
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s;
+            -webkit-tap-highlight-color: transparent;
+            text-align: center;
+        }
+        
+        .save-to-album-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(139, 92, 246, 0.4);
+        }
+        
+        .save-to-album-btn:active {
+            transform: scale(0.95);
+        }
+        
+        .save-to-album-btn.saved {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        }
+        
         /* 视频预览框 */
         .video-preview-box {
             border-radius: 12px;
@@ -2125,7 +2156,7 @@
                     
                     <div class="long-press-hint">
                         <span class="hint-icon">📱</span>
-                        <span class="hint-text">长按图片 → 保存到相册</span>
+                        <span class="hint-text">点击下方按钮保存图片到相册</span>
                     </div>
                     
                     <div class="image-group-display">
@@ -2135,7 +2166,9 @@
                                      alt="${img.original_filename}" 
                                      loading="lazy"
                                      oncontextmenu="return false;">
-                                <div class="image-save-hint">👆 长按保存</div>
+                                <button class="save-to-album-btn" onclick="saveToAlbum('${img.cloudinary_url}', '${img.original_filename}')">
+                                    📥 点我保存到相册
+                                </button>
                             </div>
                         `).join('')}
                     </div>
@@ -2265,7 +2298,53 @@
             }
         }
         
-        // 保存单张图片
+        // 保存单张图片 - 改用新代理接口
+        function saveToAlbum(url, filename) {
+            const btn = event.currentTarget;
+            const originalText = btn.innerHTML;
+            
+            btn.innerHTML = '⏳ 下载中...';
+            btn.disabled = true;
+            
+            // 通过后端代理下载
+            fetch('/api/proxy-image?url=' + encodeURIComponent(url) + '&filename=' + encodeURIComponent(filename || 'image.jpg'))
+                .then(response => {
+                    if (!response.ok) throw new Error('下载失败');
+                    return response.blob();
+                })
+                .then(blob => {
+                    const blobUrl = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = blobUrl;
+                    a.download = filename || 'image.jpg';
+                    a.style.display = 'none';
+                    document.body.appendChild(a);
+                    a.click();
+                    setTimeout(() => {
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(blobUrl);
+                    }, 1000);
+                    
+                    btn.innerHTML = '✅ 已保存';
+                    btn.classList.add('saved');
+                    setTimeout(() => {
+                        btn.innerHTML = originalText;
+                        btn.classList.remove('saved');
+                        btn.disabled = false;
+                    }, 2000);
+                })
+                .catch(err => {
+                    console.error('保存失败:', err);
+                    // 回退：直接打开图片让用户手动长按保存
+                    window.open(url, '_blank');
+                    btn.innerHTML = '👆 长按图片保存';
+                    setTimeout(() => {
+                        btn.innerHTML = originalText;
+                    }, 3000);
+                    btn.disabled = false;
+                });
+        }
+        
         function saveImage(url, filename) {
             // 防止重复点击
             event.preventDefault();
