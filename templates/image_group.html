@@ -94,17 +94,35 @@
             display: inline-block;
         }
         
-        .save-hint.mobile {
-            display: none;
+        /* 保存到相册按钮 */
+        .save-to-album-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 10px 20px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            border: none;
+            border-radius: 25px;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark, #6d28d9) 100%);
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 8px;
+            -webkit-tap-highlight-color: transparent;
         }
         
-        @media (max-width: 768px) {
-            .save-hint.desktop {
-                display: none;
-            }
-            .save-hint.mobile {
-                display: inline-block;
-            }
+        .save-to-album-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(139, 92, 246, 0.4);
+        }
+        
+        .save-to-album-btn:active {
+            transform: scale(0.95);
+        }
+        
+        .save-to-album-btn.saved {
+            background: linear-gradient(135deg, var(--success) 0%, #059669 100%);
         }
         
         /* 底部返回按钮 */
@@ -396,8 +414,9 @@
                 </div>
                 <div class="image-info">
                     <p class="image-name" title="{{ image.original_filename }}">{{ image.original_filename }}</p>
-                    <span class="save-hint desktop">💡 右键点击图片 → 另存为</span>
-                    <span class="save-hint mobile">💡 长按图片 → 保存到相册</span>
+                    <button class="save-to-album-btn" onclick="saveToAlbum('{{ image.cloudinary_url }}', '{{ image.original_filename }}')">
+                        📥 点我保存到相册
+                    </button>
                 </div>
             </div>
             {% endfor %}
@@ -420,9 +439,9 @@
     <div class="preview-modal" id="preview-modal">
         <button class="preview-close" onclick="closePreview()">×</button>
         <img id="preview-image" src="" alt="预览">
-        <a id="preview-download" class="preview-download" download>
-            ⬇ 保存图片
-        </a>
+        <button id="preview-download" class="preview-download" onclick="saveFromPreview()">
+            📥 点我保存到相册
+        </button>
     </div>
     
     <script>
@@ -484,14 +503,16 @@
         }
         
         // 图片预览功能
+        let currentPreviewUrl = '';
+        let currentPreviewFilename = '';
+        
         function openPreview(url, filename) {
             const modal = document.getElementById('preview-modal');
             const img = document.getElementById('preview-image');
-            const downloadBtn = document.getElementById('preview-download');
             
+            currentPreviewUrl = url;
+            currentPreviewFilename = filename;
             img.src = url;
-            downloadBtn.href = url;
-            downloadBtn.download = filename;
             modal.classList.add('active');
             
             // 禁止滚动
@@ -517,6 +538,90 @@
                 closePreview();
             }
         });
+        
+        // ========== 保存到相册功能 ==========
+        async function saveToAlbum(url, filename) {
+            const btn = event.currentTarget;
+            const originalText = btn.innerHTML;
+            
+            try {
+                btn.innerHTML = '⏳ 下载中...';
+                btn.disabled = true;
+                
+                // 方案1: 用 fetch + blob + a.download 触发下载
+                try {
+                    const response = await fetch(url, { mode: 'cors' });
+                    if (response.ok) {
+                        const blob = await response.blob();
+                        const blobUrl = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = blobUrl;
+                        a.download = filename || 'image.jpg';
+                        a.style.display = 'none';
+                        document.body.appendChild(a);
+                        a.click();
+                        setTimeout(() => {
+                            document.body.removeChild(a);
+                            URL.revokeObjectURL(blobUrl);
+                        }, 1000);
+                        
+                        btn.innerHTML = '✅ 已保存';
+                        btn.classList.add('saved');
+                        setTimeout(() => {
+                            btn.innerHTML = originalText;
+                            btn.classList.remove('saved');
+                            btn.disabled = false;
+                        }, 2000);
+                        return;
+                    }
+                } catch (fetchErr) {
+                    console.warn('fetch下载失败，尝试备用方案:', fetchErr);
+                }
+                
+                // 方案2: 用 Cloudinary fl_attachment 参数强制下载
+                try {
+                    const downloadUrl = url.includes('cloudinary') 
+                        ? url.replace('/upload/', '/upload/fl_attachment/') 
+                        : url;
+                    const a = document.createElement('a');
+                    a.href = downloadUrl;
+                    a.download = filename || 'image.jpg';
+                    a.style.display = 'none';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    
+                    btn.innerHTML = '✅ 已触发下载';
+                    btn.classList.add('saved');
+                    setTimeout(() => {
+                        btn.innerHTML = originalText;
+                        btn.classList.remove('saved');
+                        btn.disabled = false;
+                    }, 2000);
+                } catch (e2) {
+                    // 方案3: 新窗口打开让用户手动保存
+                    window.open(url, '_blank');
+                    btn.innerHTML = '👆 长按图片保存';
+                    setTimeout(() => {
+                        btn.innerHTML = originalText;
+                    }, 3000);
+                    btn.disabled = false;
+                }
+                
+            } catch (err) {
+                console.error('保存失败:', err);
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+                alert('保存失败，请长按图片手动保存');
+            }
+        }
+        
+        // 预览弹窗里的保存功能
+        async function saveFromPreview() {
+            if (currentPreviewUrl) {
+                await saveToAlbum.call(null, currentPreviewUrl, currentPreviewFilename);
+            }
+        }
     </script>
 </body>
 </html>
