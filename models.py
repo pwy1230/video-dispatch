@@ -478,8 +478,8 @@ def assign_random_video(client_identifier, device_info=None, user_id=None):
     
     video = dict_from_row(video)
     
-    # 设置冻结到期时间（10分钟后），is_assigned 暂时保持为 0
-    cursor.execute('UPDATE videos SET frozen_until = ? WHERE id = ?', (frozen_until, video['id']))
+    # 下载后直接标记为已分配，永久移出素材池，确保每个素材只被下载一次
+    cursor.execute('UPDATE videos SET is_assigned = 1, frozen_until = ? WHERE id = ?', (frozen_until, video['id']))
     
     # 创建下载记录
     cursor.execute(
