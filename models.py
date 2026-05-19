@@ -924,3 +924,74 @@ def get_all_payment_qrcodes():
 if __name__ == '__main__':
     # 初始化数据库
     init_db()
+
+
+def get_all_materials():
+    """获取所有可用素材（视频+图片组），用于素材列表页
+    新逻辑：素材下载后立即下架（is_assigned=1），其他用户不可见不可下，避免重复
+    """
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+        SELECT v.id, v.type, v.original_filename, v.file_size, v.uploaded_at,
+               v.cloudinary_public_id, v.cloudinary_url, v.publish_requirements,
+               v.is_assigned,
+               u.username as uploader_name
+        FROM videos v
+        JOIN users u ON v.uploader_id = u.id
+        WHERE v.is_assigned = 0
+        ORDER BY v.uploaded_at DESC
+    ''')
+    
+    materials = [dict_from_row(row) for row in cursor.fetchall()]
+    
+    # 为图片组素材附加第一张图片作为缩略图
+    for m in materials:
+        if m.get('type') == 'image_group':
+            cursor.execute('''
+                SELECT cloudinary_url FROM image_group_items
+                WHERE video_id = ?
+                ORDER BY sort_order
+                LIMIT 1
+            ''', (m['id'],))
+            first_img = cursor.fetchone()
+            if first_img:
+                m['thumbnail_url'] = first_img['cloudinary_url']
+            else:
+                m['thumbnail_url'] = None
+        else:
+            # 视频用 cloudinary_url 生成缩略图
+            if m.get('cloudinary_url'):
+                parts = m['cloudinary_url'].split('/upload/')
+                if len(parts) == 2:
+                    m['thumbnail_url'] = parts[0] + '/upload/w_400,h_300,c_fill,f_jpg/' + parts[1]
+                else:
+                    m['thumbnail_url'] = m['cloudinary_url']
+            else:
+                m['thumbnail_url'] = None
+    
+    conn.close()
+    return materials
+
+
+def record_material_download(video_id, client_identifier, device_info=None, user_id=None):
+    """记录素材下载，并立即将素材标记为已下架（is_assigned=1），防止其他用户重复下载导致查重"""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    # 1. 记录下载
+    cursor.execute(
+        'INSERT INTO download_records (video_id, user_id, client_identifier, device_info) VALUES (?, ?, ?, ?)',
+        (video_id, user_id, client_identifier, device_info)
+    )
+    
+    # 2. 立即下架该素材，其他用户不可见不可下
+    cursor.execute(
+        'UPDATE videos SET is_assigned = 1, frozen_until = NULL WHERE id = ?',
+        (video_id,)
+    )
+    
+    conn.commit()
+    conn.close()
+    return True

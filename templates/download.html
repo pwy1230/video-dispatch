@@ -1240,7 +1240,7 @@
         <div class="home-content">
             <div class="home-logo">🎬</div>
             <h1 class="home-title">视频派发系统</h1>
-            <p class="home-subtitle">点击按钮，随机下载一个视频</p>
+            <p class="home-subtitle">点击按钮，进入素材库自选下载</p>
             
             <!-- 公告区域 -->
             {% if announcements %}
@@ -1271,23 +1271,16 @@
             </div>
             {% endif %}
             
-            {% if can_download and stats.available_total > 0 %}
             <a href="{{ url_for('download_action') }}" class="download-btn pulse-glow" id="main-download-btn">
-                <span class="btn-icon">🎯</span> 点我下载素材
+                <span class="btn-icon">📦</span> 点我获取素材
             </a>
-            {% elif remaining_downloads is defined and remaining_downloads <= 0 %}
-            <button class="download-btn" disabled>
-                <span>✅</span> 今日次数已用完
-            </button>
-            {% elif not can_download %}
-            <button class="download-btn" disabled>
-                <span>✅</span> 今日已下载
-            </button>
-            {% else %}
-            <button class="download-btn" disabled>
-                <span>📭</span> 暂无可领取内容
-            </button>
-            {% endif %}
+            
+            <!-- 新手教程入口 -->
+            <div style="margin-top: 16px; text-align: center;">
+                <a href="javascript:void(0)" onclick="openTutorialModal()" style="color: #93c5fd; font-size: 0.95rem; font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">
+                    ❓ 不知道怎么下载发布？点我查看教程
+                </a>
+            </div>
             
             <!-- 视频池状态 -->
             <div class="video-status">
@@ -2122,6 +2115,7 @@
                 closeScreenshotModal();
                 closeImageViewer();
                 closeDownloadModal();
+                closeTutorialModal();
             }
         });
         
@@ -2456,5 +2450,103 @@
         </div>
         <button class="download-modal-close" onclick="closeDownloadModal()">×</button>
     </div>
+
+    <!-- ========== 教程弹窗 ========== -->
+    <div class="tutorial-modal" id="tutorial-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:3000; align-items:center; justify-content:center; padding:20px;">
+        <div style="background: var(--bg-card); border-radius: 20px; padding: 28px; width: 100%; max-width: 480px; max-height: 85vh; overflow-y: auto;">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:20px;">
+                <div style="font-size:1.2rem; font-weight:700; display:flex; align-items:center; gap:8px;">📖 新手教程</div>
+                <button onclick="closeTutorialModal()" style="width:36px;height:36px;border-radius:10px;border:none;background:var(--bg-input);color:var(--text-primary);font-size:1.2rem;cursor:pointer;display:flex;align-items:center;justify-content:center;">×</button>
+            </div>
+
+            <!-- 视频下载教程 -->
+            <div style="margin-bottom:20px;">
+                <div style="display:flex;align-items:center;gap:8px;font-size:1rem;font-weight:700;margin-bottom:14px;">
+                    <span style="font-size:1.2rem;">🎥</span> 视频下载 & 发布教程
+                </div>
+                <div style="display:flex;flex-direction:column;">
+                    <div style="display:flex;align-items:flex-start;gap:14px;padding:12px 14px;background:rgba(255,255,255,0.04);border-radius:12px;">
+                        <div style="width:34px;height:34px;min-width:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.95rem;font-weight:800;color:white;background:linear-gradient(135deg,#10b981,#059669);">1</div>
+                        <div style="flex:1;">
+                            <div style="font-size:0.95rem;font-weight:600;margin-bottom:4px;">点击"点我下载素材"进入素材库</div>
+                            <div style="font-size:0.85rem;color:var(--text-secondary);line-height:1.5;">看到所有可用素材，选一个你想用的</div>
+                        </div>
+                    </div>
+                    <div style="display:flex;justify-content:center;padding:4px 0;color:rgba(255,255,255,0.2);font-size:1.1rem;">▼</div>
+                    <div style="display:flex;align-items:flex-start;gap:14px;padding:12px 14px;background:rgba(255,255,255,0.04);border-radius:12px;">
+                        <div style="width:34px;height:34px;min-width:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.95rem;font-weight:800;color:white;background:linear-gradient(135deg,#10b981,#059669);">2</div>
+                        <div style="flex:1;">
+                            <div style="font-size:0.95rem;font-weight:600;margin-bottom:4px;">点下载按钮保存视频</div>
+                            <div style="font-size:0.85rem;color:var(--text-secondary);line-height:1.5;">弹窗里点"直接下载"；如果没反应，长按视频画面选"保存视频"</div>
+                        </div>
+                    </div>
+                    <div style="display:flex;justify-content:center;padding:4px 0;color:rgba(255,255,255,0.2);font-size:1.1rem;">▼</div>
+                    <div style="display:flex;align-items:flex-start;gap:14px;padding:12px 14px;background:rgba(255,255,255,0.04);border-radius:12px;">
+                        <div style="width:34px;height:34px;min-width:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.95rem;font-weight:800;color:white;background:linear-gradient(135deg,#10b981,#059669);">3</div>
+                        <div style="flex:1;">
+                            <div style="font-size:0.95rem;font-weight:600;margin-bottom:4px;">打开抖音发视频</div>
+                            <div style="font-size:0.85rem;color:var(--text-secondary);line-height:1.5;">打开抖音 → 点底部"+"号 → 选"相册" → 选择刚下载的视频 → 发布！</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div style="height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.1),transparent);margin:16px 0;"></div>
+
+            <!-- 图片组下载教程 -->
+            <div style="margin-bottom:20px;">
+                <div style="display:flex;align-items:center;gap:8px;font-size:1rem;font-weight:700;margin-bottom:14px;">
+                    <span style="font-size:1.2rem;">🖼️</span> 图片组下载 & 发布教程
+                </div>
+                <div style="display:flex;flex-direction:column;">
+                    <div style="display:flex;align-items:flex-start;gap:14px;padding:12px 14px;background:rgba(255,255,255,0.04);border-radius:12px;">
+                        <div style="width:34px;height:34px;min-width:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.95rem;font-weight:800;color:white;background:linear-gradient(135deg,#8b5cf6,#6d28d9);">1</div>
+                        <div style="flex:1;">
+                            <div style="font-size:0.95rem;font-weight:600;margin-bottom:4px;">选图片组素材点下载</div>
+                            <div style="font-size:0.85rem;color:var(--text-secondary);line-height:1.5;">会弹出图片组里所有图片</div>
+                        </div>
+                    </div>
+                    <div style="display:flex;justify-content:center;padding:4px 0;color:rgba(255,255,255,0.2);font-size:1.1rem;">▼</div>
+                    <div style="display:flex;align-items:flex-start;gap:14px;padding:12px 14px;background:rgba(255,255,255,0.04);border-radius:12px;">
+                        <div style="width:34px;height:34px;min-width:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.95rem;font-weight:800;color:white;background:linear-gradient(135deg,#8b5cf6,#6d28d9);">2</div>
+                        <div style="flex:1;">
+                            <div style="font-size:0.95rem;font-weight:600;margin-bottom:4px;">逐张保存图片</div>
+                            <div style="font-size:0.85rem;color:var(--text-secondary);line-height:1.5;">点每张图片下面的"点我保存到相册"按钮，或长按图片选"保存图片"</div>
+                        </div>
+                    </div>
+                    <div style="display:flex;justify-content:center;padding:4px 0;color:rgba(255,255,255,0.2);font-size:1.1rem;">▼</div>
+                    <div style="display:flex;align-items:flex-start;gap:14px;padding:12px 14px;background:rgba(255,255,255,0.04);border-radius:12px;">
+                        <div style="width:34px;height:34px;min-width:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.95rem;font-weight:800;color:white;background:linear-gradient(135deg,#8b5cf6,#6d28d9);">3</div>
+                        <div style="flex:1;">
+                            <div style="font-size:0.95rem;font-weight:600;margin-bottom:4px;">打开抖音发图文</div>
+                            <div style="font-size:0.85rem;color:var(--text-secondary);line-height:1.5;">打开抖音 → 点底部"+"号 → 选"相册" → 多选保存的图片 → 发布！</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div style="margin-top:16px;padding:14px 16px;background:linear-gradient(135deg,rgba(16,185,129,0.12),rgba(5,150,105,0.08));border:1px solid rgba(16,185,129,0.3);border-radius:12px;">
+                <div style="font-size:0.9rem;font-weight:700;color:#34d399;margin-bottom:6px;display:flex;align-items:center;gap:6px;">💡 小提示</div>
+                <div style="font-size:0.82rem;color:var(--text-secondary);line-height:1.6;">
+                    下载的视频/图片在手机相册里找，一般叫"Downloads"或"下载"文件夹。<br>
+                    抖音发视频时选"相册"就能看到刚下载的素材啦～
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 教程弹窗
+        function openTutorialModal() {
+            var modal = document.getElementById('tutorial-modal');
+            modal.style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+        }
+        function closeTutorialModal() {
+            var modal = document.getElementById('tutorial-modal');
+            modal.style.display = 'none';
+            document.body.style.overflow = '';
+        }
+    </script>
 </body>
 </html>
