@@ -42,6 +42,17 @@ MAX_CONTENT_LENGTH = 500 * 1024 * 1024  # 500MB
 
 app.config['MAX_CONTENT_LENGTH'] = MAX_CONTENT_LENGTH
 
+# Debug error handler
+@app.errorhandler(500)
+def internal_error(error):
+    import traceback
+    return f"<h1>500 Error</h1><pre>{traceback.format_exc()}</pre>", 500
+
+@app.errorhandler(Exception)
+def handle_exception(e):
+    import traceback
+    return f"<h1>Error</h1><pre>{traceback.format_exc()}</pre>", 500
+
 # 本地存储路径（仅本地开发使用）
 UPLOAD_FOLDER = 'static/videos'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
